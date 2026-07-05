@@ -1,0 +1,40 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# --- Ferramentas / caches ---
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# --- IDEs ---
+.idea/
+.vscode/
+
+# --- Dados (grandes, baixáveis via data_download.py) ---
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# --- Modelos serializados (re-geráveis via train.py) ---
+# metadata.json fica versionado: é pequeno e carrega os bins congelados do PSI
+models/*.pkl
+models/*.joblib
+
+# --- Banco local (SQLite + arquivos do modo WAL) ---
+*.db
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+
+# --- Sistema ---
+.DS_Store
