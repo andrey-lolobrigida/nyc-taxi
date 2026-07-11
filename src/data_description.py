@@ -79,10 +79,12 @@ COLUMN_DOCS: dict[str, dict] = {
     "DOLocationID": {
         "at_pickup": True,
         "interpretation": (
-            "Taxi zone de desembarque informada como destino. No green taxi é "
-            "registrada pelo sistema ao fim da corrida, mas em produção real o "
-            "destino declarado existe no embarque — tratamos como disponível. "
-            "Destino do centroide da feature haversine."
+            "Taxi zone onde o taxímetro foi desligado (fim da corrida) — a "
+            "rigor, um dado pós-corrida. **Premissa de modelagem**: usamos como "
+            "proxy do destino *declarado* no embarque, que existiria num cenário "
+            "real de despacho/app mas não é registrado no dataset. O proxy só "
+            "falha quando o destino muda no meio da corrida, raro no nível de "
+            "zona. Destino do centroide da feature haversine."
         ),
     },
     "passenger_count": {
