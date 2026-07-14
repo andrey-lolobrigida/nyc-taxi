@@ -429,7 +429,8 @@ com medianas de ~30 min — excluindo-a, a mediana das 6h cai de ~20 para
 *Sazonalidade semanal clara (dia útil vs. fim de semana), mas o baseline
 **não é estacionário**: o volume médio diário cai
 {stats['queda_2019_pct']:.0f}% entre jan e dez de 2019 — o green taxi já
-vinha encolhendo antes da pandemia (competição dos apps de transporte).
+vinha encolhendo antes da pandemia (uma hipótese comum é a competição dos
+apps de transporte, mas isso não é verificável com estes dados).
 Implicação para o monitoramento: alguma deriva de volume é o estado normal
 deste serviço; o que a pandemia adiciona é uma mudança de outra ordem de
 grandeza, e é isso que os thresholds de PSI precisam separar.*
