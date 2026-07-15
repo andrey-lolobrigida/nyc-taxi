@@ -265,7 +265,8 @@ taxi-mlops/
 
 ## Decisões em aberto (revisar durante a implementação)
 
-- [ ] Escolher biblioteca do modelo: LightGBM vs XGBoost vs scikit-learn puro.
+- [x] Escolher biblioteca do modelo → **LightGBM** (API nativa, categóricas
+      sobre colunas int, NaN tratado nativamente — ver docstring de train.py).
 - [ ] Definir tamanho da amostra mensal do replay (ponto de partida:
       30-50k corridas/mês ou o mês inteiro se for menor que isso).
 - [ ] Calibrar K e M da regra de retreino depois de ver os números reais.
@@ -279,7 +280,11 @@ taxi-mlops/
       → haversine NaN (~0,4% das corridas). Pesquisar depois se dá para
       atribuir centroides a elas (outras fontes ou heurística) em vez de
       aceitar o NaN.
-- [ ] Corridas despachadas vs. street-hail (o bloco MNAR do dicionário de
+- [x] Corridas despachadas vs. street-hail → **resolvido em evaluate.py**:
+      modelo único com trip_type (NaN → categoria 0) fica; viés extra só na
+      despachada explícita (1,4% do tráfego), que vira item de monitoramento.
+      Racional original:
+      Corridas despachadas vs. street-hail (o bloco MNAR do dicionário de
       dados; ver seção 3 da EDA — madrugada com ~25% de despachadas e
       medianas ~30 min). `trip_type` é conhecido no embarque (sem leakage),
       então o caminho natural é:
