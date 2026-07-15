@@ -275,6 +275,27 @@ taxi-mlops/
       de PSI/KS, ou fica de fora do escopo v1.
 - [ ] Definir se o front React (mencionado como ambição futura) entra no
       escopo deste projeto ou fica para uma v2.
+- [ ] Zonas 264 (Unknown) e 265 (Outside NYC) não têm centroide no shapefile
+      → haversine NaN (~0,4% das corridas). Pesquisar depois se dá para
+      atribuir centroides a elas (outras fontes ou heurística) em vez de
+      aceitar o NaN.
+- [ ] Corridas despachadas vs. street-hail (o bloco MNAR do dicionário de
+      dados; ver seção 3 da EDA — madrugada com ~25% de despachadas e
+      medianas ~30 min). `trip_type` é conhecido no embarque (sem leakage),
+      então o caminho natural é:
+      1. incluir `trip_type` como feature candidata no `train.py` — árvores
+         aprendem relações diferentes por grupo via split, sem precisar de
+         dois modelos;
+      2. no `evaluate.py`, quebrar os resíduos por grupo — esse é o critério
+         real de decisão, não as distribuições marginais;
+      3. só considerar dois modelos separados se o modelo único *com* a
+         feature ainda errar sistematicamente num dos grupos.
+      Uma EDA comparativa entre os grupos entra como contexto, mas com
+      tamanhos de efeito, não p-valores (com n na casa das centenas de
+      milhares, qualquer teste rejeita H₀ para diferenças minúsculas).
+      Bônus de monitoramento: a proporção despachada/street-hail é um input
+      que o PSI pode vigiar — mudança na mistura durante a pandemia é mais
+      um sinal de drift de graça no dashboard.
 
 ## Fora de escopo (por enquanto)
 
