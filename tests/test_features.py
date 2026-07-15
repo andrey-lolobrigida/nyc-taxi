@@ -67,6 +67,7 @@ def trips():
             ["2019-01-01 08:20:00", "2019-07-06 14:30:30", "2019-12-03 03:30:00"]),
         "PULocationID": [1, 2, 1],
         "DOLocationID": [2, 2, 264],  # 264 não tem centroide
+        "trip_type": [1.0, np.nan, 2.0],  # NaN = bloco MNAR (canal reduzido)
     })
 
 
@@ -95,6 +96,10 @@ class TestAddFeatures:
         assert out["pickup_hour"].tolist() == [8, 14, 23]
         assert out["pickup_dayofweek"].tolist() == [1, 5, 0]  # ter, sáb, seg
         assert out["is_weekend"].tolist() == [0, 1, 0]
+
+    def test_trip_type_nan_vira_categoria_zero(self, trips, centroids):
+        out = add_features(trips, centroids)
+        assert out["trip_type"].tolist() == [1, 0, 2]
 
     def test_feriado_federal(self, trips, centroids):
         out = add_features(trips, centroids)

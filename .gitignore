@@ -38,3 +38,6 @@ models/*.joblib
 
 # --- Sistema ---
 .DS_Store
+
+# --- Config do Claude ---
+.claude

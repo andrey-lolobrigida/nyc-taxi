@@ -39,6 +39,7 @@ DUR_MAX_MINUTES = 180.0
 FEATURE_COLUMNS = [
     "PULocationID",
     "DOLocationID",
+    "trip_type",
     "haversine_km",
     "pickup_hour",
     "pickup_dayofweek",
@@ -105,12 +106,14 @@ def haversine_km(lat1, lon1, lat2, lon2):
 def add_features(df: pd.DataFrame, centroids: pd.DataFrame) -> pd.DataFrame:
     """Adiciona as FEATURE_COLUMNS a um DataFrame de corridas.
 
-    Espera as colunas `lpep_pickup_datetime` (datetime), `PULocationID` e
-    `DOLocationID`. Funciona igualmente para um mês inteiro (treino) ou uma
-    única corrida (API) — mesmo código nos dois caminhos.
+    Espera as colunas `lpep_pickup_datetime` (datetime), `PULocationID`,
+    `DOLocationID` e `trip_type` (NaN permitido). Funciona igualmente para um
+    mês inteiro (treino) ou uma única corrida (API) — mesmo código nos dois
+    caminhos.
 
     Zonas sem centroide (264/265) resultam em haversine_km NaN; a decisão de
-    descartar ou imputar fica com quem consome (train.py descarta).
+    descartar ou imputar fica com quem consome (train.py mantém — LightGBM
+    trata NaN nativamente, e produção recebe essas zonas também).
     """
     out = df.copy()
     pickup = out["lpep_pickup_datetime"]
@@ -121,6 +124,12 @@ def add_features(df: pd.DataFrame, centroids: pd.DataFrame) -> pd.DataFrame:
         pu["lat"].to_numpy(), pu["lon"].to_numpy(),
         do["lat"].to_numpy(), do["lon"].to_numpy(),
     )
+
+    # trip_type: 1 = street-hail, 2 = despacho. NaN identifica o bloco MNAR
+    # (corridas ingeridas por canal de reporte reduzido — ver notas de
+    # qualidade da EDA): subpopulação com perfil próprio, então NaN vira a
+    # categoria 0 em vez de imputação.
+    out["trip_type"] = out["trip_type"].fillna(0).astype("int8")
 
     out["pickup_hour"] = pickup.dt.hour.astype("int8")
     out["pickup_dayofweek"] = pickup.dt.dayofweek.astype("int8")
