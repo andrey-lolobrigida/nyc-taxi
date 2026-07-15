@@ -32,8 +32,9 @@ desligar o taxímetro, não corridas reais).
 
 **Cortes de limpeza adotados: 1 min ≤ duração ≤
 180 min**, removendo 145,672 corridas
-(2.31% do ano). `features.py` e `train.py` devem
-herdar estes valores (constantes `DUR_MIN_MINUTES`/`DUR_MAX_MINUTES`).
+(2.31% do ano). Os valores vivem em `features.py`
+(constantes `DUR_MIN_MINUTES`/`DUR_MAX_MINUTES`), fonte única para EDA,
+treino e API.
 
 ![Distribuição do alvo](01_target_hist.png)
 

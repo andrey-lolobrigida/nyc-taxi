@@ -24,15 +24,11 @@ import pandas as pd
 from matplotlib.ticker import FuncFormatter
 
 from data_download import month_range
+from features import DUR_MAX_MINUTES, DUR_MIN_MINUTES
 
 ROOT = Path(__file__).resolve().parent.parent
 RAW_DIR = ROOT / "data" / "raw"
 DEFAULT_OUT = ROOT / "reports" / "eda"
-
-# Cortes de limpeza do alvo, justificados na seção 1 do relatório.
-# features.py e train.py devem herdar estes valores, não redefini-los.
-DUR_MIN_MINUTES = 1.0
-DUR_MAX_MINUTES = 180.0
 
 # Paleta de referência do skill de dataviz (modo claro, já validada).
 BLUE = "#2a78d6"        # série principal
@@ -391,8 +387,9 @@ desligar o taxímetro, não corridas reais).
 
 **Cortes de limpeza adotados: {DUR_MIN_MINUTES:.0f} min ≤ duração ≤
 {DUR_MAX_MINUTES:.0f} min**, removendo {stats['n_removidas']:,} corridas
-({stats['pct_removidas']:.2f}% do ano). `features.py` e `train.py` devem
-herdar estes valores (constantes `DUR_MIN_MINUTES`/`DUR_MAX_MINUTES`).
+({stats['pct_removidas']:.2f}% do ano). Os valores vivem em `features.py`
+(constantes `DUR_MIN_MINUTES`/`DUR_MAX_MINUTES`), fonte única para EDA,
+treino e API.
 
 ![Distribuição do alvo]({figures['hist']})
 
