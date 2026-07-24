@@ -21,7 +21,7 @@ from fastapi import FastAPI
 
 from api.config import settings
 from api.db import init_db
-from api.routers import feedback, predict
+from api.routers import feedback, monitoring, predict
 from features import FEATURE_COLUMNS, load_zone_centroids
 
 
@@ -48,6 +48,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="NYC Green Taxi — duração de corrida", lifespan=lifespan)
 app.include_router(predict.router)
 app.include_router(feedback.router)
+app.include_router(monitoring.router)
 
 
 @app.get("/health")

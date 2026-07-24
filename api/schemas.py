@@ -39,3 +39,57 @@ class FeedbackRequest(BaseModel):
 class FeedbackResponse(BaseModel):
     prediction_id: str
     status: Literal["ok"]
+
+
+# --- /monitoring/* ----------------------------------------------------------
+# `month` refere-se sempre ao mês de pickup_datetime (relógio do mundo
+# simulado, 2020-2021), nunca ao created_at do replay.
+
+
+class DriftFeature(BaseModel):
+    psi: float
+    ks: float | None = Field(
+        default=None, description="KS binado vs. treino; só para contínuas")
+    level: Literal["stable", "watch", "alert"]
+
+
+class DriftResponse(BaseModel):
+    month: str
+    n_predictions: int
+    thresholds: dict[str, float]
+    features: dict[str, DriftFeature]
+    n_alert: int = Field(description="nº de features com level == alert")
+
+
+class PerformanceResponse(BaseModel):
+    month: str
+    n_predictions: int
+    n_with_feedback: int
+    mae_min: float | None = Field(
+        description="None enquanto nenhum feedback do mês chegou")
+    rmse_min: float | None
+    median_ae_min: float | None
+    bias_min: float | None = Field(
+        default=None,
+        description="média de (predito - real); positivo = modelo "
+                    "superestima a duração (assinatura de concept drift "
+                    "com ruas vazias)")
+    holdout_reference: dict[str, float] = Field(
+        description="métricas do holdout de 2019 (metadata.json), baseline "
+                    "para o dashboard alinhar as curvas")
+
+
+class RetrainMonth(BaseModel):
+    month: str
+    n_alert: int
+    alert_features: list[str]
+
+
+class RetrainCheckResponse(BaseModel):
+    month: str
+    status: Literal["green", "yellow", "red"]
+    rule: dict[str, float] = Field(
+        description="parâmetros vigentes da regra (k, m, psi_alert)")
+    months: list[RetrainMonth] = Field(
+        description="janela avaliada (só meses com dados), em ordem "
+                    "cronológica")
