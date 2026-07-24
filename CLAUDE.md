@@ -170,6 +170,40 @@ Plotar as duas curvas alinhadas no tempo permite ver o PSI subindo *antes*
 argumento de venda do monitoramento de drift, contado pelos próprios dados
 do projeto.
 
+## Design aprovado do dashboard (brainstorm de 2026-07-24)
+
+Decisões fechadas com mockups (3 direções foram propostas; escolhida a
+combinação "sismógrafo + certificado"):
+
+- **Dark mode**. Paleta: fundo `#131417`, painéis `#1B1D21`, texto
+  `#E6E6E2`, atenção `#D9A013`, alerta `#C4442C`, agulha `#4C8DFF`.
+  Sans neutra no chrome; monoespaçada nas tabelas das seções.
+  Tema via `.streamlit/config.toml` + CSS injetado + tema Altair custom.
+- **Layout** (uma página, top→bottom):
+  1. Cabeçalho: título, versão do modelo (`/health`), slider de mês
+     ("agulha") que dirige a página inteira.
+  2. **Sismógrafo**: 8 pistas finas de PSI (small multiples Altair, eixo x
+     compartilhado 2020-01→2021-12), divisor "confirmação atrasada",
+     pistas de MAE e viés. Banda translúcida da COVID (mar–jun/2020)
+     atravessando todas as pistas; linha tracejada do holdout no MAE;
+     agulha no mês selecionado; severidade codificada na cor da
+     linha/marcadores (estável cinza, atenção âmbar, alerta vermelho).
+     A defasagem PSI→MAE (alerta precoce vs. confirmação atrasada) é o
+     argumento visual central.
+  3. **Três painéis estilo formulário** (borda fina, cabeçalho caixa alta,
+     dados em mono) com o mês selecionado:
+     Seção 1 — Exame de distribuição (tabela feature | PSI | leitura + KS);
+     Seção 2 — Desempenho aferido (MAE/RMSE/viés vs. holdout, n, cobertura
+     de feedback);
+     Seção 3 — Parecer de retreino (features em alerta, streak, status
+     verde/amarelo/vermelho + botão "disparar retreino" mock que só
+     registra a intenção).
+- **Dados**: novo endpoint `GET /monitoring/timeline` (a implementar)
+  agrega drift + performance + retrain-status de todos os meses
+  disponíveis numa resposta; o Streamlit chama uma vez (`st.cache_data`)
+  e slider/seções são filtragem local. Dashboard continua consumindo SÓ a
+  API (decisão #2). API fora do ar → mensagem clara com o comando de subir.
+
 ## Estrutura de pastas
 
 ```
@@ -267,8 +301,11 @@ taxi-mlops/
 
 - [x] Escolher biblioteca do modelo → **LightGBM** (API nativa, categóricas
       sobre colunas int, NaN tratado nativamente — ver docstring de train.py).
-- [ ] Definir tamanho da amostra mensal do replay (ponto de partida:
-      30-50k corridas/mês ou o mês inteiro se for menor que isso).
+- [x] Tamanho da amostra mensal do replay → **30k corridas/mês** (default
+      de simulate_production.py, parametrizável via --sample-size). Com
+      esse n o grupo de controle ficou estável (PSI < 0.04 em todas as
+      features exceto a deriva secular real de trip_type), e meses de
+      pandemia menores que 30k vão inteiros.
 - [ ] Calibrar K e M da regra de retreino depois de ver os números reais.
 - [ ] Definir se o "retreino automático" da fase 3 vai de fato re-treinar
       o modelo ou só simular o disparo do pipeline.
