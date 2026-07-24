@@ -19,6 +19,7 @@ Uso (build da tabela de centroides):
 """
 
 import argparse
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
@@ -103,6 +104,18 @@ def haversine_km(lat1, lon1, lat2, lon2):
     return 2 * EARTH_RADIUS_KM * np.arcsin(np.sqrt(a))
 
 
+@lru_cache(maxsize=8)
+def federal_holidays(start_year: int, end_year: int) -> pd.DatetimeIndex:
+    """Feriados federais no intervalo de anos (inclusivo), cacheado.
+
+    Construir o calendário custa ~200ms — irrelevante no treino (uma chamada
+    para milhões de linhas), mas fatal na API, que chama add_features por
+    request de UMA linha. Cachear por ano mantém o resultado idêntico nos
+    dois caminhos (mesma regra de ouro da decisão #3)."""
+    return USFederalHolidayCalendar().holidays(
+        start=pd.Timestamp(start_year, 1, 1), end=pd.Timestamp(end_year, 12, 31))
+
+
 def add_features(df: pd.DataFrame, centroids: pd.DataFrame) -> pd.DataFrame:
     """Adiciona as FEATURE_COLUMNS a um DataFrame de corridas.
 
@@ -135,8 +148,7 @@ def add_features(df: pd.DataFrame, centroids: pd.DataFrame) -> pd.DataFrame:
     out["pickup_dayofweek"] = pickup.dt.dayofweek.astype("int8")
     out["is_weekend"] = (out["pickup_dayofweek"] >= 5).astype("int8")
 
-    holidays = USFederalHolidayCalendar().holidays(
-        start=pickup.min().normalize(), end=pickup.max().normalize())
+    holidays = federal_holidays(pickup.min().year, pickup.max().year)
     out["is_holiday"] = pickup.dt.normalize().isin(holidays).astype("int8")
 
     return out

@@ -45,10 +45,15 @@ CREATE INDEX IF NOT EXISTS idx_predictions_pickup
 
 
 def get_connection() -> sqlite3.Connection:
-    """Conexão nova (uma por request — sqlite3 não é thread-safe entre
-    requests do threadpool do FastAPI). busy_timeout cobre a janela rara de
-    dois escritores simultâneos, que WAL não elimina."""
-    conn = sqlite3.connect(settings.db_path)
+    """Conexão nova (uma por request). busy_timeout cobre a janela rara de
+    dois escritores simultâneos, que WAL não elimina.
+
+    check_same_thread=False: o FastAPI pode rodar o endpoint e o teardown
+    da dependência em threads DIFERENTES do threadpool — o uso continua
+    sequencial dentro do request (nunca duas threads ao mesmo tempo na
+    mesma conexão), que é o cenário seguro. Sem isso, o replay concorrente
+    da fase 3 estoura sqlite3.ProgrammingError no conn.close()."""
+    conn = sqlite3.connect(settings.db_path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
