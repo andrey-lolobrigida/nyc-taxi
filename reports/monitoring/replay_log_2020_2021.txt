@@ -1,0 +1,386 @@
+API ok — modelo 0.1.0 (treinado em 2026-07-15T22:31:30+00:00)
+
+### 2020-01: 439110 corridas limpas -> replay de 30001
+  predict:  30001 ok, 0 falhas (418s, 72 req/s)
+  feedback: 30001 ok, 0 falhas (24s)
+
+--- monitoramento 2020-01  (grupo de controle — esperado PSI < 0.1)
+    PULocationID       psi=0.0333
+    DOLocationID       psi=0.0179
+  ! trip_type          psi=0.2372
+    haversine_km       psi=0.0021  ks=0.016
+    pickup_hour        psi=0.0053
+    pickup_dayofweek   psi=0.0143
+    is_weekend         psi=0.0078
+    is_holiday         psi=0.0312
+  performance: mae=3.71 min (holdout 3.99)  rmse=6.11  bias=+0.18  n=30001/30001
+  retrain-check: 🟢 green  (features em alerta por mês: 2020-01:1)
+
+### 2020-02: 390528 corridas limpas -> replay de 29999
+  predict:  29999 ok, 0 falhas (400s, 75 req/s)
+  feedback: 29999 ok, 0 falhas (25s)
+
+--- monitoramento 2020-02  (grupo de controle — esperado PSI < 0.1)
+    PULocationID       psi=0.0279
+    DOLocationID       psi=0.0158
+  ~ trip_type          psi=0.1185
+    haversine_km       psi=0.0022  ks=0.020
+    pickup_hour        psi=0.0017
+    pickup_dayofweek   psi=0.0038
+    is_weekend         psi=0.0008
+    is_holiday         psi=0.0027
+  performance: mae=3.59 min (holdout 3.99)  rmse=6.25  bias=-0.25  n=29999/29999
+  retrain-check: 🟢 green  (features em alerta por mês: 2020-01:1, 2020-02:0)
+API ok — modelo 0.1.0 (treinado em 2026-07-15T22:31:30+00:00)
+
+### 2020-03: 218518 corridas limpas -> replay de 30000
+  predict:  30000 ok, 0 falhas (444s, 68 req/s)
+  feedback: 30000 ok, 0 falhas (24s)
+
+--- monitoramento 2020-03
+    PULocationID       psi=0.0544
+    DOLocationID       psi=0.0337
+  ~ trip_type          psi=0.1402
+    haversine_km       psi=0.0007  ks=0.006
+    pickup_hour        psi=0.0089
+    pickup_dayofweek   psi=0.0200
+    is_weekend         psi=0.0031
+    is_holiday         psi=0.0829
+  performance: mae=4.03 min (holdout 3.99)  rmse=7.07  bias=+0.32  n=30000/30000
+  retrain-check: 🟢 green  (features em alerta por mês: 2020-02:0, 2020-03:0)
+
+### 2020-04: 34496 corridas limpas -> replay de 29999
+  predict:  29999 ok, 0 falhas (442s, 68 req/s)
+  feedback: 29999 ok, 0 falhas (24s)
+
+--- monitoramento 2020-04
+  ! PULocationID       psi=0.6103
+  ! DOLocationID       psi=0.4505
+  ! trip_type          psi=0.3554
+    haversine_km       psi=0.0566  ks=0.090
+  ~ pickup_hour        psi=0.1034
+    pickup_dayofweek   psi=0.0472
+    is_weekend         psi=0.0324
+    is_holiday         psi=0.0829
+  performance: mae=6.32 min (holdout 3.99)  rmse=9.55  bias=+4.49  n=29999/29999
+  retrain-check: 🟡 yellow  (features em alerta por mês: 2020-03:0, 2020-04:3)
+
+### 2020-05: 55886 corridas limpas -> replay de 29998
+  predict:  29998 ok, 0 falhas (457s, 66 req/s)
+  feedback: 29998 ok, 0 falhas (25s)
+
+--- monitoramento 2020-05
+  ! PULocationID       psi=0.6457
+  ! DOLocationID       psi=0.4935
+  ! trip_type          psi=0.8018
+  ~ haversine_km       psi=0.1575  ks=0.161
+  ~ pickup_hour        psi=0.1047
+    pickup_dayofweek   psi=0.0098
+    is_weekend         psi=0.0035
+    is_holiday         psi=0.0018
+  performance: mae=5.97 min (holdout 3.99)  rmse=8.99  bias=+3.86  n=29998/29998
+  retrain-check: 🔴 red  (features em alerta por mês: 2020-04:3, 2020-05:3)
+
+### 2020-06: 61541 corridas limpas -> replay de 30003
+  predict:  30003 ok, 0 falhas (430s, 70 req/s)
+  feedback: 30003 ok, 0 falhas (23s)
+
+--- monitoramento 2020-06
+  ! PULocationID       psi=0.5320
+  ! DOLocationID       psi=0.3443
+  ! trip_type          psi=0.5878
+    haversine_km       psi=0.0958  ks=0.123
+  ~ pickup_hour        psi=0.1084
+    pickup_dayofweek   psi=0.0408
+    is_weekend         psi=0.0231
+    is_holiday         psi=0.0829
+  performance: mae=4.96 min (holdout 3.99)  rmse=7.86  bias=+1.83  n=30003/30003
+  retrain-check: 🔴 red  (features em alerta por mês: 2020-05:3, 2020-06:3)
+
+### 2020-07: 70451 corridas limpas -> replay de 29997
+  predict:  29997 ok, 0 falhas (455s, 66 req/s)
+  feedback: 29997 ok, 0 falhas (25s)
+
+--- monitoramento 2020-07
+  ! PULocationID       psi=0.4967
+  ! DOLocationID       psi=0.3126
+  ! trip_type          psi=0.6275
+    haversine_km       psi=0.0917  ks=0.122
+  ~ pickup_hour        psi=0.1131
+    pickup_dayofweek   psi=0.0430
+    is_weekend         psi=0.0370
+    is_holiday         psi=0.0093
+  performance: mae=4.90 min (holdout 3.99)  rmse=7.73  bias=+1.37  n=29997/29997
+  retrain-check: 🔴 red  (features em alerta por mês: 2020-06:3, 2020-07:3)
+
+### 2020-08: 79129 corridas limpas -> replay de 30001
+  predict:  30001 ok, 0 falhas (442s, 68 req/s)
+  feedback: 30001 ok, 0 falhas (23s)
+
+--- monitoramento 2020-08
+  ! PULocationID       psi=0.4044
+  ! DOLocationID       psi=0.2520
+  ! trip_type          psi=0.6991
+    haversine_km       psi=0.0944  ks=0.127
+  ~ pickup_hour        psi=0.1025
+    pickup_dayofweek   psi=0.0183
+    is_weekend         psi=0.0028
+    is_holiday         psi=0.0829
+  performance: mae=4.68 min (holdout 3.99)  rmse=7.48  bias=+0.94  n=30001/30001
+  retrain-check: 🔴 red  (features em alerta por mês: 2020-07:3, 2020-08:3)
+
+### 2020-09: 86026 corridas limpas -> replay de 30002
+  predict:  30002 ok, 0 falhas (458s, 66 req/s)
+  feedback: 30002 ok, 0 falhas (23s)
+
+--- monitoramento 2020-09
+  ! PULocationID       psi=0.3919
+  ! DOLocationID       psi=0.2506
+  ! trip_type          psi=0.8048
+    haversine_km       psi=0.0572  ks=0.099
+  ~ pickup_hour        psi=0.1617
+    pickup_dayofweek   psi=0.0476
+    is_weekend         psi=0.0338
+    is_holiday         psi=0.0006
+  performance: mae=4.55 min (holdout 3.99)  rmse=7.31  bias=+0.48  n=30002/30002
+  retrain-check: 🔴 red  (features em alerta por mês: 2020-08:3, 2020-09:3)
+
+### 2020-10: 92927 corridas limpas -> replay de 29998
+  predict:  29998 ok, 0 falhas (458s, 65 req/s)
+  feedback: 29998 ok, 0 falhas (24s)
+
+--- monitoramento 2020-10
+  ! PULocationID       psi=0.3627
+  ! DOLocationID       psi=0.2287
+  ! trip_type          psi=0.7846
+    haversine_km       psi=0.0504  ks=0.090
+  ~ pickup_hour        psi=0.1561
+    pickup_dayofweek   psi=0.0299
+    is_weekend         psi=0.0152
+    is_holiday         psi=0.0035
+  performance: mae=4.51 min (holdout 3.99)  rmse=7.31  bias=+0.28  n=29998/29998
+  retrain-check: 🔴 red  (features em alerta por mês: 2020-09:3, 2020-10:3)
+
+### 2020-11: 86521 corridas limpas -> replay de 30001
+  predict:  30001 ok, 0 falhas (455s, 66 req/s)
+  feedback: 30001 ok, 0 falhas (24s)
+
+--- monitoramento 2020-11
+  ! PULocationID       psi=0.3462
+  ! DOLocationID       psi=0.2168
+  ! trip_type          psi=0.8040
+    haversine_km       psi=0.0510  ks=0.091
+  ~ pickup_hour        psi=0.1766
+    pickup_dayofweek   psi=0.0422
+    is_weekend         psi=0.0166
+    is_holiday         psi=0.0510
+  performance: mae=4.60 min (holdout 3.99)  rmse=7.73  bias=+0.36  n=30001/30001
+  retrain-check: 🔴 red  (features em alerta por mês: 2020-10:3, 2020-11:3)
+
+### 2020-12: 81195 corridas limpas -> replay de 29999
+  predict:  29999 ok, 0 falhas (458s, 66 req/s)
+  feedback: 29999 ok, 0 falhas (23s)
+
+--- monitoramento 2020-12
+  ! PULocationID       psi=0.3781
+  ! DOLocationID       psi=0.2248
+  ! trip_type          psi=0.7765
+    haversine_km       psi=0.0402  ks=0.078
+  ~ pickup_hour        psi=0.1919
+    pickup_dayofweek   psi=0.0737
+    is_weekend         psi=0.0473
+    is_holiday         psi=0.0007
+  performance: mae=4.91 min (holdout 3.99)  rmse=8.58  bias=+0.57  n=29999/29999
+  retrain-check: 🔴 red  (features em alerta por mês: 2020-11:3, 2020-12:3)
+
+### 2021-01: 74882 corridas limpas -> replay de 29999
+  predict:  29999 ok, 0 falhas (457s, 66 req/s)
+  feedback: 29999 ok, 0 falhas (24s)
+
+--- monitoramento 2021-01
+  ! PULocationID       psi=0.4192
+  ! DOLocationID       psi=0.2657
+  ! trip_type          psi=0.8694
+    haversine_km       psi=0.0517  ks=0.092
+  ! pickup_hour        psi=0.2307
+    pickup_dayofweek   psi=0.0164
+    is_weekend         psi=0.0152
+    is_holiday         psi=0.0195
+  performance: mae=4.89 min (holdout 3.99)  rmse=8.09  bias=+1.62  n=29999/29999
+  retrain-check: 🔴 red  (features em alerta por mês: 2020-12:3, 2021-01:4)
+
+### 2021-02: 63287 corridas limpas -> replay de 30000
+  predict:  30000 ok, 0 falhas (457s, 66 req/s)
+  feedback: 30000 ok, 0 falhas (23s)
+
+--- monitoramento 2021-02
+  ! PULocationID       psi=0.4629
+  ! DOLocationID       psi=0.2840
+  ! trip_type          psi=0.7935
+    haversine_km       psi=0.0451  ks=0.088
+  ! pickup_hour        psi=0.2105
+    pickup_dayofweek   psi=0.0311
+    is_weekend         psi=0.0212
+    is_holiday         psi=0.0060
+  performance: mae=4.89 min (holdout 3.99)  rmse=8.60  bias=-0.01  n=30000/30000
+  retrain-check: 🔴 red  (features em alerta por mês: 2021-01:4, 2021-02:4)
+
+### 2021-03: 82203 corridas limpas -> replay de 30000
+  predict:  30000 ok, 0 falhas (462s, 65 req/s)
+  feedback: 30000 ok, 0 falhas (23s)
+
+--- monitoramento 2021-03
+  ! PULocationID       psi=0.4595
+  ! DOLocationID       psi=0.2975
+  ! trip_type          psi=0.8999
+    haversine_km       psi=0.0542  ks=0.098
+  ! pickup_hour        psi=0.2194
+    pickup_dayofweek   psi=0.0685
+    is_weekend         psi=0.0513
+    is_holiday         psi=0.0829
+  performance: mae=4.83 min (holdout 3.99)  rmse=8.55  bias=+0.28  n=30000/30000
+  retrain-check: 🔴 red  (features em alerta por mês: 2021-02:4, 2021-03:4)
+
+### 2021-04: 85282 corridas limpas -> replay de 30002
+  predict:  30002 ok, 0 falhas (456s, 66 req/s)
+  feedback: 30002 ok, 0 falhas (23s)
+
+--- monitoramento 2021-04
+  ! PULocationID       psi=0.4380
+  ! DOLocationID       psi=0.2892
+  ! trip_type          psi=0.8628
+    haversine_km       psi=0.0734  ks=0.111
+  ! pickup_hour        psi=0.2191
+    pickup_dayofweek   psi=0.0476
+    is_weekend         psi=0.0420
+    is_holiday         psi=0.0829
+  performance: mae=5.16 min (holdout 3.99)  rmse=9.93  bias=-0.58  n=30002/30002
+  retrain-check: 🔴 red  (features em alerta por mês: 2021-03:4, 2021-04:4)
+
+### 2021-05: 86409 corridas limpas -> replay de 29999
+  predict:  29999 ok, 0 falhas (456s, 66 req/s)
+  feedback: 29999 ok, 0 falhas (24s)
+
+--- monitoramento 2021-05
+  ! PULocationID       psi=0.3913
+  ! DOLocationID       psi=0.2497
+  ! trip_type          psi=0.7030
+    haversine_km       psi=0.0701  ks=0.110
+  ~ pickup_hour        psi=0.1654
+    pickup_dayofweek   psi=0.0098
+    is_weekend         psi=0.0005
+    is_holiday         psi=0.0030
+  performance: mae=5.08 min (holdout 3.99)  rmse=10.12  bias=-1.08  n=29999/29999
+  retrain-check: 🔴 red  (features em alerta por mês: 2021-04:4, 2021-05:3)
+
+### 2021-06: 84832 corridas limpas -> replay de 30002
+  predict:  30002 ok, 0 falhas (452s, 66 req/s)
+  feedback: 30002 ok, 0 falhas (25s)
+
+--- monitoramento 2021-06
+  ! PULocationID       psi=0.3254
+  ! DOLocationID       psi=0.2018
+  ! trip_type          psi=0.5284
+    haversine_km       psi=0.0685  ks=0.103
+  ~ pickup_hour        psi=0.1161
+    pickup_dayofweek   psi=0.0197
+    is_weekend         psi=0.0096
+    is_holiday         psi=0.0139
+  performance: mae=5.20 min (holdout 3.99)  rmse=9.87  bias=-1.72  n=30002/30002
+  retrain-check: 🔴 red  (features em alerta por mês: 2021-05:3, 2021-06:3)
+
+### 2021-07: 81669 corridas limpas -> replay de 29997
+  predict:  29997 ok, 0 falhas (457s, 66 req/s)
+  feedback: 29997 ok, 0 falhas (23s)
+
+--- monitoramento 2021-07
+  ! PULocationID       psi=0.3081
+  ~ DOLocationID       psi=0.1797
+  ! trip_type          psi=0.5822
+    haversine_km       psi=0.0958  ks=0.122
+    pickup_hour        psi=0.0896
+    pickup_dayofweek   psi=0.0150
+    is_weekend         psi=0.0021
+    is_holiday         psi=0.0026
+  performance: mae=5.01 min (holdout 3.99)  rmse=9.16  bias=-0.55  n=29997/29997
+  retrain-check: 🔴 red  (features em alerta por mês: 2021-06:3, 2021-07:2)
+
+### 2021-08: 81518 corridas limpas -> replay de 30002
+  predict:  30002 ok, 0 falhas (453s, 66 req/s)
+  feedback: 30002 ok, 0 falhas (23s)
+
+--- monitoramento 2021-08
+  ! PULocationID       psi=0.2939
+  ~ DOLocationID       psi=0.1951
+  ! trip_type          psi=0.6062
+  ~ haversine_km       psi=0.1075  ks=0.128
+    pickup_hour        psi=0.0807
+    pickup_dayofweek   psi=0.0235
+    is_weekend         psi=0.0057
+    is_holiday         psi=0.0829
+  performance: mae=4.93 min (holdout 3.99)  rmse=8.95  bias=-0.41  n=30002/30002
+  retrain-check: 🔴 red  (features em alerta por mês: 2021-07:2, 2021-08:2)
+
+### 2021-09: 93050 corridas limpas -> replay de 30001
+  predict:  30001 ok, 0 falhas (446s, 67 req/s)
+  feedback: 30001 ok, 0 falhas (24s)
+
+--- monitoramento 2021-09
+  ! PULocationID       psi=0.2313
+  ~ DOLocationID       psi=0.1471
+  ! trip_type          psi=0.4852
+  ~ haversine_km       psi=0.1122  ks=0.131
+    pickup_hour        psi=0.0653
+    pickup_dayofweek   psi=0.0161
+    is_weekend         psi=0.0083
+    is_holiday         psi=0.0027
+  performance: mae=5.61 min (holdout 3.99)  rmse=10.60  bias=-2.13  n=30001/30001
+  retrain-check: 🔴 red  (features em alerta por mês: 2021-08:2, 2021-09:2)
+
+### 2021-10: 107983 corridas limpas -> replay de 29999
+  predict:  29999 ok, 0 falhas (459s, 65 req/s)
+  feedback: 29999 ok, 0 falhas (24s)
+
+--- monitoramento 2021-10
+  ~ PULocationID       psi=0.1591
+  ~ DOLocationID       psi=0.1183
+  ! trip_type          psi=0.3952
+    haversine_km       psi=0.0627  ks=0.105
+    pickup_hour        psi=0.0615
+    pickup_dayofweek   psi=0.0076
+    is_weekend         psi=0.0011
+    is_holiday         psi=0.0062
+  performance: mae=5.45 min (holdout 3.99)  rmse=10.63  bias=-2.65  n=29999/29999
+  retrain-check: 🟢 green  (features em alerta por mês: 2021-09:2, 2021-10:1)
+
+### 2021-11: 105314 corridas limpas -> replay de 29999
+  predict:  29999 ok, 0 falhas (458s, 65 req/s)
+  feedback: 29999 ok, 0 falhas (24s)
+
+--- monitoramento 2021-11
+  ~ PULocationID       psi=0.1644
+  ~ DOLocationID       psi=0.1149
+  ! trip_type          psi=0.3590
+    haversine_km       psi=0.0541  ks=0.093
+    pickup_hour        psi=0.0538
+    pickup_dayofweek   psi=0.0298
+    is_weekend         psi=0.0059
+    is_holiday         psi=0.0585
+  performance: mae=5.53 min (holdout 3.99)  rmse=11.15  bias=-2.58  n=29999/29999
+  retrain-check: 🟢 green  (features em alerta por mês: 2021-10:1, 2021-11:1)
+
+### 2021-12: 96963 corridas limpas -> replay de 29999
+  predict:  29999 ok, 0 falhas (458s, 65 req/s)
+  feedback: 29999 ok, 0 falhas (24s)
+
+--- monitoramento 2021-12
+  ~ PULocationID       psi=0.1711
+  ~ DOLocationID       psi=0.1348
+  ~ trip_type          psi=0.1998
+    haversine_km       psi=0.0373  ks=0.072
+    pickup_hour        psi=0.0431
+    pickup_dayofweek   psi=0.0141
+    is_weekend         psi=0.0080
+    is_holiday         psi=0.0315
+  performance: mae=5.38 min (holdout 3.99)  rmse=11.27  bias=-1.83  n=29999/29999
+  retrain-check: 🟢 green  (features em alerta por mês: 2021-11:1, 2021-12:0)
