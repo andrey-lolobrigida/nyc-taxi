@@ -39,6 +39,12 @@ data/retrain_intents.log
 *.db-wal
 *.db-shm
 
+# --- Wiki de estudo (material de aprendizado, não faz parte do produto) ---
+# Explica os conceitos e registra a deliberação por trás de cada decisão.
+# Fica fora do repo de propósito: o leitor do projeto lê o CLAUDE.md e os
+# reports/, não as anotações de quem estava aprendendo.
+wiki/
+
 # --- Sistema ---
 .DS_Store
 
