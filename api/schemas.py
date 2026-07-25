@@ -93,3 +93,33 @@ class RetrainCheckResponse(BaseModel):
     months: list[RetrainMonth] = Field(
         description="janela avaliada (só meses com dados), em ordem "
                     "cronológica")
+
+
+class TimelineMonth(BaseModel):
+    """Um mês de produção com os três sinais lado a lado: drift (imediato),
+    performance (atrasada) e o parecer da regra de retreino."""
+
+    month: str
+    n_predictions: int
+    n_with_feedback: int
+    features: dict[str, DriftFeature]
+    n_alert: int
+    alert_features: list[str]
+    mae_min: float | None
+    rmse_min: float | None
+    median_ae_min: float | None
+    bias_min: float | None
+    retrain_status: Literal["green", "yellow", "red"]
+
+
+class TimelineResponse(BaseModel):
+    """Série completa para o dashboard desenhar de uma vez (uma chamada, sem
+    N requests por mês). O que é constante — thresholds, regra, baseline do
+    holdout — sai no topo, não repetido em cada mês."""
+
+    months: list[TimelineMonth] = Field(description="ordem cronológica")
+    feature_names: list[str] = Field(
+        description="features monitoradas, na ordem do schema do modelo")
+    thresholds: dict[str, float]
+    rule: dict[str, float]
+    holdout_reference: dict[str, float]

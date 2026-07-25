@@ -27,6 +27,8 @@ from api.schemas import (
     PerformanceResponse,
     RetrainCheckResponse,
     RetrainMonth,
+    TimelineMonth,
+    TimelineResponse,
 )
 from drift import (
     PSI_ALERT,
@@ -63,6 +65,19 @@ FROM predictions
 WHERE pickup_datetime >= ? AND pickup_datetime < ?
 """
 
+# A timeline puxa TUDO de uma vez e agrupa em memória: 24 meses × 30k linhas
+# saem em ~2,5 s numa passada só, contra 24×3 requests se o dashboard
+# montasse a série chamando os endpoints mês a mês.
+TIMELINE_SQL = """
+SELECT substr(pickup_datetime, 1, 7) AS month,
+       pu_location_id  AS "PULocationID",
+       do_location_id  AS "DOLocationID",
+       trip_type, haversine_km, pickup_hour, pickup_dayofweek,
+       is_weekend, is_holiday,
+       predicted_duration_min, actual_duration_min
+FROM predictions
+"""
+
 
 def month_bounds(month: str) -> tuple[str, str]:
     """[início, fim) do mês em ISO — comparação lexicográfica funciona
@@ -83,6 +98,37 @@ def psi_level(psi: float) -> str:
     return "stable"
 
 
+def drift_features(features_df: pd.DataFrame, specs: dict
+                   ) -> dict[str, DriftFeature]:
+    """compute_drift + classificação por threshold, no formato do contrato."""
+    return {
+        name: DriftFeature(psi=entry["psi"], ks=entry.get("ks"),
+                           level=psi_level(entry["psi"]))
+        for name, entry in compute_drift(features_df, specs).items()
+    }
+
+
+def alert_names(features: dict[str, DriftFeature]) -> list[str]:
+    return sorted(name for name, f in features.items() if f.level == "alert")
+
+
+def month_performance(rows: pd.DataFrame) -> dict:
+    """MAE/RMSE/mediana/viés dos pares predição-feedback do mês.
+
+    Tudo None enquanto nenhum feedback chegou — é a "confirmação atrasada"
+    ainda em trânsito, não um erro.
+    """
+    pairs = rows.dropna(subset=["actual_duration_min"])
+    if pairs.empty:
+        return {"mae_min": None, "rmse_min": None,
+                "median_ae_min": None, "bias_min": None}
+    actual = pairs["actual_duration_min"].to_numpy()
+    predicted = pairs["predicted_duration_min"].to_numpy()
+    return metrics(actual, predicted) | {  # mesma conta do holdout
+        "bias_min": float((predicted - actual).mean()),
+    }
+
+
 @router.get("/drift", response_model=DriftResponse)
 def drift(request: Request, month: str = MONTH_QUERY,
           conn: sqlite3.Connection = Depends(db.get_db)) -> DriftResponse:
@@ -90,12 +136,8 @@ def drift(request: Request, month: str = MONTH_QUERY,
     if features_df.empty:
         raise HTTPException(404, f"nenhuma predição logada para {month}")
 
-    report = compute_drift(features_df, request.app.state.metadata["psi_bins"])
-    features = {
-        name: DriftFeature(psi=entry["psi"], ks=entry.get("ks"),
-                           level=psi_level(entry["psi"]))
-        for name, entry in report.items()
-    }
+    features = drift_features(features_df,
+                              request.app.state.metadata["psi_bins"])
     return DriftResponse(
         month=month,
         n_predictions=len(features_df),
@@ -113,21 +155,12 @@ def performance(request: Request, month: str = MONTH_QUERY,
     if rows.empty:
         raise HTTPException(404, f"nenhuma predição logada para {month}")
 
-    pairs = rows.dropna(subset=["actual_duration_min"])
-    month_metrics: dict = {"mae_min": None, "rmse_min": None,
-                           "median_ae_min": None, "bias_min": None}
-    if not pairs.empty:
-        actual = pairs["actual_duration_min"].to_numpy()
-        predicted = pairs["predicted_duration_min"].to_numpy()
-        month_metrics = metrics(actual, predicted)  # mesma conta do holdout
-        month_metrics["bias_min"] = float((predicted - actual).mean())
-
     return PerformanceResponse(
         month=month,
         n_predictions=len(rows),
-        n_with_feedback=len(pairs),
+        n_with_feedback=int(rows["actual_duration_min"].notna().sum()),
         holdout_reference=request.app.state.metadata["holdout_metrics"],
-        **month_metrics,
+        **month_performance(rows),
     )
 
 
@@ -147,13 +180,9 @@ def retrain_check(request: Request, month: str = MONTH_QUERY,
         features_df = load_month_features(conn, window_month)
         if features_df.empty:
             continue
-        report = compute_drift(features_df, specs)
-        alert_features = sorted(
-            name for name, entry in report.items() if entry["psi"] > PSI_ALERT
-        )
-        months.append(RetrainMonth(month=window_month,
-                                   n_alert=len(alert_features),
-                                   alert_features=alert_features))
+        alerts = alert_names(drift_features(features_df, specs))
+        months.append(RetrainMonth(month=window_month, n_alert=len(alerts),
+                                   alert_features=alerts))
 
     if not months or months[-1].month != month:
         raise HTTPException(404, f"nenhuma predição logada para {month}")
@@ -163,4 +192,53 @@ def retrain_check(request: Request, month: str = MONTH_QUERY,
         status=retrain_status([m.n_alert for m in months]),
         rule={"k": RETRAIN_K, "m": RETRAIN_M, "psi_alert": PSI_ALERT},
         months=months,
+    )
+
+
+@router.get("/timeline", response_model=TimelineResponse)
+def timeline(request: Request, conn: sqlite3.Connection = Depends(db.get_db)
+             ) -> TimelineResponse:
+    """Série mês a mês de drift + performance + parecer de retreino.
+
+    Existe para o dashboard: uma chamada devolve a página inteira, e o
+    seletor de mês vira filtragem local em vez de round-trip por mês. Os
+    endpoints por mês continuam sendo a fonte da verdade (mesmas funções);
+    este aqui é a versão em lote.
+    """
+    metadata = request.app.state.metadata
+    rows = pd.read_sql_query(TIMELINE_SQL, conn)
+    if rows.empty:
+        raise HTTPException(404, "nenhuma predição logada")
+
+    by_month = {}
+    for month, group in rows.groupby("month", sort=True):
+        features = drift_features(group, metadata["psi_bins"])
+        alerts = alert_names(features)
+        by_month[month] = {
+            "month": month,
+            "n_predictions": len(group),
+            "n_with_feedback": int(group["actual_duration_min"].notna().sum()),
+            "features": features,
+            "n_alert": len(alerts),
+            "alert_features": alerts,
+            **month_performance(group),
+        }
+
+    # Status de retreino: mesma janela de calendário do /retrain-check —
+    # os M meses anteriores, contando só os que têm dados (mês sem medição
+    # não confirma nem quebra a streak, apenas não entra).
+    months = []
+    for month, entry in by_month.items():
+        end = pd.Period(month, freq="M")
+        window = [str(end - offset) for offset in range(RETRAIN_M - 1, -1, -1)]
+        counts = [by_month[m]["n_alert"] for m in window if m in by_month]
+        months.append(TimelineMonth(**entry,
+                                    retrain_status=retrain_status(counts)))
+
+    return TimelineResponse(
+        months=months,
+        feature_names=metadata["features"],
+        thresholds={"watch": PSI_WATCH, "alert": PSI_ALERT},
+        rule={"k": RETRAIN_K, "m": RETRAIN_M, "psi_alert": PSI_ALERT},
+        holdout_reference=metadata["holdout_metrics"],
     )
