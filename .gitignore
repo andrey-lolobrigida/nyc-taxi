@@ -45,6 +45,9 @@ data/retrain_intents.log
 # reports/, não as anotações de quem estava aprendendo.
 wiki/
 
+# --- Config do Obsidian (editor usado para ler a wiki) ---
+.obsidian/
+
 # --- Sistema ---
 .DS_Store
 
