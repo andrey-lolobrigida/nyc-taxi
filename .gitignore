@@ -29,6 +29,9 @@ data/processed/*
 models/*.pkl
 models/*.joblib
 
+# --- Log do botão de retreino (intenções registradas pelo dashboard) ---
+data/retrain_intents.log
+
 # --- Banco local (SQLite + arquivos do modo WAL) ---
 *.db
 *.sqlite

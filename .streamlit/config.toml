@@ -1,0 +1,22 @@
+# Tema do dashboard (design aprovado no CLAUDE.md): dark mode, paleta do
+# "sismógrafo". Aqui ficam só as cores que o Streamlit desenha sozinho
+# (chrome, widgets); o resto — painéis, tabelas, tema do Altair — vem do
+# CSS e do tema de gráfico definidos em dashboard/app.py, que é a fonte da
+# verdade da paleta.
+[theme]
+base = "dark"
+backgroundColor = "#131417"
+secondaryBackgroundColor = "#1B1D21"
+textColor = "#E6E6E2"
+primaryColor = "#4C8DFF"
+borderColor = "#2A2D33"
+
+[server]
+headless = true
+# Só loopback: sem isso o Streamlit escuta em 0.0.0.0 e o dashboard fica
+# visível para qualquer máquina da rede local. O projeto roda todo local
+# (CLAUDE.md, "fora de escopo"), então não há motivo para expor a porta.
+address = "localhost"
+
+[browser]
+gatherUsageStats = false
