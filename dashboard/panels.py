@@ -13,7 +13,14 @@ from datetime import datetime
 import pandas as pd
 
 from config import settings
-from theme import LEVEL_COLOR, LEVEL_LABEL, STATUS_COLOR, STATUS_LABEL, STATUS_READING
+from theme import (
+    LEVEL_COLOR,
+    LEVEL_LABEL,
+    STATUS_COLOR,
+    STATUS_LABEL,
+    STATUS_READING,
+    num,
+)
 
 
 def _panel(title: str, body: str) -> str:
@@ -25,10 +32,11 @@ def distribution(timeline, month: str) -> str:
     """Seção 1: PSI e KS por feature, com a leitura em palavras."""
     rows = []
     for row in timeline.drift_of(month).itertuples():
-        ks = "—" if pd.isna(row.ks) else f"{row.ks:.3f}"
+        ks = "—" if pd.isna(row.ks) else num(row.ks, "{:.3f}")
         rows.append(
             f'<tr><td>{html.escape(row.feature)}</td>'
-            f'<td class="num">{row.psi:.3f}</td><td class="num">{ks}</td>'
+            f'<td class="num">{num(row.psi, "{:.3f}")}</td>'
+            f'<td class="num">{ks}</td>'
             f'<td><span class="dot" style="background:'
             f'{LEVEL_COLOR[row.level]}"></span>{LEVEL_LABEL[row.level]}</td>'
             "</tr>")
@@ -46,7 +54,7 @@ def performance(row: pd.Series, holdout: dict) -> str:
     coverage = row["n_with_feedback"] / row["n_predictions"]
 
     def line(label: str, value, fmt: str, reference: str = "") -> str:
-        shown = "—" if value is None or pd.isna(value) else fmt.format(value)
+        shown = "—" if value is None or pd.isna(value) else num(value, fmt)
         return (f'<tr><td>{label}</td><td class="num">{shown}</td>'
                 f'<td class="num ref">{reference}</td></tr>')
 
@@ -56,12 +64,12 @@ def performance(row: pd.Series, holdout: dict) -> str:
             '<th class="num">mês</th><th class="num">holdout 2019</th>'
             "</tr></thead><tbody>",
             line("MAE (min)", row["mae_min"], "{:.2f}",
-                 f"{holdout['mae_min']:.2f}"),
+                 num(holdout["mae_min"])),
             line("RMSE (min)", row["rmse_min"], "{:.2f}",
-                 f"{holdout['rmse_min']:.2f}"),
+                 num(holdout["rmse_min"])),
             line("erro mediano", row["median_ae_min"], "{:.2f}",
-                 f"{holdout['median_ae_min']:.2f}"),
-            line("viés (min)", row["bias_min"], "{:+.2f}", "0.00"),
+                 num(holdout["median_ae_min"])),
+            line("viés (min)", row["bias_min"], "{:+.2f}", "0,00"),
             line("Δ MAE vs. holdout", delta, "{:+.2f}"),
             line("predições", row["n_predictions"], "{:,.0f}"),
             line("cobertura de feedback", coverage, "{:.1%}"),
@@ -84,11 +92,11 @@ def retrain(row: pd.Series, streak: int, rule: dict) -> str:
         f'<span class="verdict-text">{STATUS_READING[status]}</span></div>'
         '<table class="form"><tbody>'
         f'<tr><td>features em alerta</td>'
-        f'<td class="num">{row["n_alert"]}</td></tr>'
+        f'<td class="num">{num(row["n_alert"], "{:,.0f}")}</td></tr>'
         f'<tr><td>quais</td><td class="num">{html.escape(listed)}</td></tr>'
         f'<tr><td>streak (meses ≥ K)</td><td class="num">{streak}</td></tr>'
         f'<tr><td>regra vigente</td><td class="num">K={rule["k"]:.0f} · '
-        f'M={rule["m"]:.0f} · PSI &gt; {rule["psi_alert"]:g}</td></tr>'
+        f'M={rule["m"]:.0f} · PSI &gt; {num(rule["psi_alert"], "{:g}")}</td></tr>'
         "</tbody></table>"
         '<p class="foot">Vermelho = K features em alerta por M meses '
         "seguidos. Amarelo = o mês estourou, a streak não.</p>")

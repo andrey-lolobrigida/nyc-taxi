@@ -25,6 +25,18 @@ NEEDLE = "#4C8DFF"
 SANS = "Inter, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif"
 MONO = "'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace"
 
+
+def num(value, fmt: str = "{:.2f}") -> str:
+    """Número no registro do projeto: ponto no milhar, vírgula no decimal.
+
+    Meio caminho é pior que nenhum: `719.997` com o decimal ainda em ponto
+    fica ambíguo com um número quebrado. Ou tudo em pt-BR, ou tudo em en-US —
+    e o projeto inteiro (CLAUDE.md, relatórios, wiki) escreve em pt-BR.
+    """
+    text = fmt.format(value)
+    return text.replace(",", "\x00").replace(".", ",").replace("\x00", ".")
+
+
 LEVEL_COLOR = {"stable": STABLE, "watch": WATCH, "alert": ALERT}
 LEVEL_LABEL = {"stable": "estável", "watch": "atenção", "alert": "alerta"}
 # As pistas de MAE/viés não têm severidade — os thresholds do projeto são de
@@ -94,6 +106,11 @@ CSS = f"""
   table.form td {{ padding:3px 0; border-top:1px solid #212429;
                    color:{INK}; }}
   table.form .num {{ text-align:right; font-variant-numeric:tabular-nums; }}
+  /* Sem calha entre colunas, uma célula alinhada à direita encosta na
+     seguinte, alinhada à esquerda: 'KS' colava em 'leitura' e o valor do KS
+     colava no marcador de severidade. A calha vai só da segunda coluna em
+     diante para a primeira não recuar da margem do painel. */
+  table.form td + td, table.form th + th {{ padding-left:14px; }}
   table.form .ref {{ color:{MUTED}; }}
   .foot {{ font:10px/1.5 {SANS}; color:{MUTED}; margin:10px 0 12px; }}
   .verdict {{ display:flex; align-items:center; gap:10px; margin-bottom:12px; }}

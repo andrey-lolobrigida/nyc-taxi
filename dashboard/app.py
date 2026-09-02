@@ -52,7 +52,8 @@ def masthead(health: dict, timeline: monitoring.Timeline) -> None:
         f'<span class="meta">modelo {html.escape(health["model_version"])} · '
         f'treinado em {health["trained_at"][:10]} · '
         f"{len(timeline.months)} meses de produção · "
-        f'{timeline.performance["n_predictions"].sum():,} predições'
+        f'{theme.num(timeline.performance["n_predictions"].sum(), "{:,.0f}")}'
+        " predições"
         "</span></div>", unsafe_allow_html=True)
 
 
@@ -60,11 +61,11 @@ def severity_key(thresholds: dict) -> None:
     st.markdown(
         '<div class="key">'
         f'<span><span class="dot" style="background:{theme.STABLE}"></span>'
-        f'estável · PSI &lt; {thresholds["watch"]:g}</span>'
+        f'estável · PSI &lt; {theme.num(thresholds["watch"], "{:g}")}</span>'
         f'<span><span class="dot" style="background:{theme.WATCH}"></span>'
         "atenção</span>"
         f'<span><span class="dot" style="background:{theme.ALERT}"></span>'
-        f'alerta · PSI &gt; {thresholds["alert"]:g}</span>'
+        f'alerta · PSI &gt; {theme.num(thresholds["alert"], "{:g}")}</span>'
         f'<span style="color:{theme.NEEDLE}">│ agulha — mês selecionado</span>'
         "</div>", unsafe_allow_html=True)
 

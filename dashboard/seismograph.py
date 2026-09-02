@@ -31,6 +31,7 @@ from theme import (
     MARK_SIZE,
     MONO,
     MUTED,
+    num,
     NEEDLE,
     PANEL,
     SANS,
@@ -44,9 +45,23 @@ COVID_START, COVID_END = "2020-03-01", "2020-07-01"
 # fixa porque width="container" não vale dentro de facet no Vega-Lite.
 TRACK_W, TRACK_H = 980, 46
 
+# MAE e viés são o desfecho do argumento — o buraco entre o traçado e a
+# referência é o que o dashboard existe para mostrar. Numa pista de 46 px por
+# 980, +1,5 min de MAE vira uma inclinação que o olho lê como plana.
+PERF_H = 96
+
+# Largura fixa da coluna de rótulos: é o que mantém os dois blocos alinhados
+# no eixo do tempo depois do vconcat.
+HEADER_W = 160
+
 DIVIDER = " "  # pista vazia que separa alerta precoce de confirmação
 MAE = "MAE (min)"
 BIAS = "viés (min)"
+
+
+def _mmyy(date) -> str:
+    """Mês no mesmo formato do eixo do tempo (01/20), não em ISO cru."""
+    return pd.Timestamp(date).strftime("%m/%y")
 
 
 def track_order(features: list[str]) -> list[str]:
@@ -57,19 +72,32 @@ def _tracks(timeline) -> pd.DataFrame:
     """PSI, MAE e viés empilhados: uma linha por (pista, mês)."""
     psi = timeline.drift.rename(columns={"feature": "track", "psi": "value"})
     psi = psi[["track", "date", "month", "value", "level", "ks"]].copy()
-    psi["display"] = psi["value"].map("PSI {:.3f}".format)
+    psi["display"] = psi["value"].map(
+        lambda v: f'PSI {num(v, "{:.3f}")}')
     psi["reading"] = psi["level"].map(LEVEL_LABEL)
 
-    def performance(column: str, name: str, fmt: str) -> pd.DataFrame:
+    def performance(column: str, name: str, template: str, numfmt: str,
+                    baseline: float) -> pd.DataFrame:
         frame = timeline.performance[["date", "month", column]].rename(
             columns={column: "value"}).assign(track=name, level="neutro",
-                                              ks=None, reading="—")
-        frame["display"] = frame["value"].map(fmt.format)
+                                              ks=None, reading="—",
+                                              baseline=baseline)
+        # O número é formatado ANTES de entrar no template: num() devolve
+        # texto, e um texto não passa por um format spec numérico.
+        frame["display"] = frame["value"].map(
+            lambda v: template.format(num(v, numfmt)))
         return frame
 
+    # Só as pistas de desempenho têm um "de onde deveria estar": o MAE do
+    # holdout e o viés zero. As de PSI não têm baseline (NaN) e por isso não
+    # ganham área preenchida — nelas o que importa é cruzar o limiar, não a
+    # distância até ele.
+    psi["baseline"] = float("nan")
     return pd.concat([psi,
-                      performance("mae_min", MAE, "MAE {:.2f} min"),
-                      performance("bias_min", BIAS, "viés {:+.2f} min")],
+                      performance("mae_min", MAE, "MAE {} min", "{:.2f}",
+                                  timeline.holdout["mae_min"]),
+                      performance("bias_min", BIAS, "viés {} min", "{:+.2f}",
+                                  0.0)],
                      ignore_index=True)
 
 
@@ -92,10 +120,11 @@ def _marks(tracks: pd.DataFrame, timeline, selected: str) -> pd.DataFrame:
     rows += [{"track": f, "kind": "ref", "value": alert}
              for f in timeline.features]
     rows.append({"track": timeline.features[0], "kind": "reflabel",
-                 "value": alert, "text": f"PSI {alert:g} · alerta"})
+                 "value": alert,
+                 "text": f'PSI {num(alert, "{:g}")} · alerta'})
     rows += [{"track": MAE, "kind": "ref", "value": holdout},
              {"track": MAE, "kind": "reflabel", "value": holdout,
-              "text": f"holdout {holdout:.2f}"},
+              "text": f"holdout {num(holdout)}"},
              {"track": BIAS, "kind": "ref", "value": 0.0},
              {"track": BIAS, "kind": "reflabel", "value": 0.0,
               "text": "sem viés"}]
@@ -110,11 +139,26 @@ def _marks(tracks: pd.DataFrame, timeline, selected: str) -> pd.DataFrame:
                  {"track": feature, "kind": "anchor",
                   "value": max(peak * 1.12, alert * 1.25)},
                  {"track": feature, "kind": "peak",
-                  "text": f"pico {peak:.2f}"}]
+                  "text": f"pico {num(peak)}"}]
     for name, pad in ((MAE, 0.25), (BIAS, 0.5)):
         values = tracks.loc[tracks["track"] == name, "value"]
         rows += [{"track": name, "kind": "anchor", "value": values.min() - pad},
                  {"track": name, "kind": "anchor", "value": values.max() + pad}]
+
+    # O fecho da história: o MAE dos últimos meses contra o dos primeiros —
+    # que são o grupo de controle (jan-fev/2020, ainda mundo pré-pandemia).
+    # Sem este rótulo a comparação exige que o olho meça 26 px de diferença
+    # ao longo de 980 px de largura, e ninguém mede.
+    perf = timeline.performance.sort_values("date")
+    if len(perf) >= 4:
+        head, tail = perf.head(2), perf.tail(2)
+        delta = tail["mae_min"].mean() / head["mae_min"].mean() - 1
+        rows.append({
+            "track": MAE, "kind": "peak",
+            "text": "{} · {} — {:+.0%} vs {} · {}".format(
+                num(tail["mae_min"].iloc[0]), num(tail["mae_min"].iloc[1]),
+                delta, _mmyy(head["date"].iloc[0]),
+                _mmyy(head["date"].iloc[1]))})
 
     rows.append({"track": DIVIDER, "kind": "divider",
                  "text": "confirmação atrasada — só existe depois que o "
@@ -122,32 +166,52 @@ def _marks(tracks: pd.DataFrame, timeline, selected: str) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def chart(timeline, selected: str) -> alt.Chart:
-    """Sismógrafo completo, com a agulha no mês selecionado."""
-    tracks = _tracks(timeline)
-    data = pd.concat([tracks.assign(kind="trace"),
-                      _marks(tracks, timeline, selected)], ignore_index=True)
+def _block(data, tracks: list[str], height: int, x_axis, key: str,
+           x_domain):
+    """Um bloco de pistas com altura própria, facetado por pista.
 
-    # Camadas sem dados próprios: quem carrega a tabela é o facet.
-    base = alt.Chart().properties(width=TRACK_W, height=TRACK_H)
-    x = alt.X("date:T", title=None,
-              axis=alt.Axis(format="%m/%y", labelAngle=0, tickSize=3,
-                            tickCount={"interval": "month", "step": 3}))
+    As pistas de PSI e as de desempenho viram DOIS blocos porque um facet do
+    Vega-Lite impõe a mesma altura a todas as linhas — e MAE e viés precisam
+    de mais altura que `is_weekend`: são o desfecho do argumento, não ruído
+    de fundo. O eixo do tempo continua compartilhado porque os dois blocos
+    têm a mesma largura, o mesmo domínio de x e a mesma coluna de rótulos
+    (labelLimit fixo); só o bloco de baixo desenha o eixo.
+    """
+    base = alt.Chart().properties(width=TRACK_W, height=height)
+    # Domínio de x FIXO e idêntico nos dois blocos. Sem isso cada facet
+    # deduz o domínio dos seus próprios dados, e basta um mês sem feedback
+    # para o bloco de desempenho encolher e desalinhar do de PSI — perdendo
+    # justamente o eixo compartilhado que faz a defasagem ser legível.
+    x = alt.X("date:T", title=None, axis=x_axis,
+              scale=alt.Scale(domain=x_domain, nice=False))
     y = alt.Y("value:Q", title=None, axis=None)
-    hover = alt.selection_point(fields=["date"], on="pointerover",
-                                clear="pointerout", empty=False)
+    # Nome próprio por bloco. Compartilhar a seleção entre os dois blocos
+    # daria um crosshair que atravessa do PSI para o MAE, mas não dá: nome
+    # repetido vira sinal duplicado e quebra o parser do Vega. O custo é que
+    # o crosshair de hover só percorre o bloco sob o cursor — a agulha do mês
+    # selecionado, essa sim, continua atravessando os dois.
+    hover = alt.selection_point(name=f"hover_{key}", fields=["date"],
+                                on="pointerover", clear="pointerout",
+                                empty=False)
 
     def layer(kind: str) -> alt.Chart:
         return base.transform_filter(alt.datum.kind == kind)
 
-    # x com o MESMO eixo das outras camadas: num gráfico em camadas os eixos
-    # de um canal são mesclados, e uma camada com axis=None apagaria o eixo
-    # do tempo da página inteira.
+    # `name` explícito: ao unificar os parâmetros do vconcat o Altair lê o
+    # nome da primeira camada, e sem ele estoura num AttributeError obscuro.
     band = layer("band").mark_rect(fill=INK, opacity=0.045).encode(
-        x=x, x2="date2:T")
+        x=x, x2="date2:T").properties(name=f"band_{key}")
     band_label = layer("bandlabel").mark_text(
         align="left", baseline="top", dx=4, dy=2, color=MUTED,
         font=SANS, fontSize=9).encode(x=x, y=alt.value(0), text="text:N")
+    # A degradação É a distância entre o traçado e a referência, e comparar
+    # duas linhas separadas é a tarefa visual mais cara que existe. Preenchida,
+    # a mesma diferença vira área — uma quantidade, não uma inferência.
+    # isValid() deixa as pistas de PSI de fora (baseline NaN).
+    gap = layer("trace").transform_filter(
+        "isValid(datum.baseline)").mark_area(
+        color=MUTED, opacity=0.22, line=False).encode(
+        x=x, y=y, y2="baseline:Q")
     reference = layer("ref").mark_rule(
         color=MUTED, opacity=0.45, strokeDash=[3, 3]).encode(y=y)
     reference_label = layer("reflabel").mark_text(
@@ -155,13 +219,13 @@ def chart(timeline, selected: str) -> alt.Chart:
         font=MONO, fontSize=9).encode(x=alt.value(0), y=y, text="text:N")
     anchors = layer("anchor").mark_point(opacity=0).encode(y=y)
     peak = layer("peak").mark_text(
-        align="right", baseline="top", dx=-2, dy=1, color=MUTED,
+        align="right", baseline="top", dx=-6, dy=1, color=MUTED,
         font=MONO, fontSize=9).encode(
         x=alt.value(TRACK_W), y=alt.value(0), text="text:N")
     divider = layer("divider").mark_text(
         align="center", baseline="middle", color=MUTED, font=SANS,
         fontSize=10).encode(x=alt.value(TRACK_W / 2),
-                            y=alt.value(TRACK_H / 2), text="text:N")
+                            y=alt.value(height / 2), text="text:N")
 
     needle = layer("needle").mark_rule(color=NEEDLE, strokeWidth=1.5,
                                        opacity=0.9).encode(x=x)
@@ -187,13 +251,33 @@ def chart(timeline, selected: str) -> alt.Chart:
     ).add_params(hover)
 
     return alt.layer(
-        band, reference, needle, crosshair, trace, points, hit,
+        band, gap, reference, needle, crosshair, trace, points, hit,
         band_label, reference_label, anchors, peak, divider,
     ).facet(
-        row=alt.Row("track:N", sort=track_order(timeline.features), title=None,
+        row=alt.Row("track:N", sort=tracks, title=None,
                     header=alt.Header(orient="left", labelAngle=0,
                                       labelAlign="left", labelPadding=10,
-                                      labelLimit=160)),
-        data=data,
+                                      labelLimit=HEADER_W)),
+        data=data[data["track"].isin(tracks)],
         spacing=4,
     ).resolve_scale(y="independent")
+
+
+def chart(timeline, selected: str) -> alt.Chart:
+    """Sismógrafo completo, com a agulha no mês selecionado."""
+    tracks = _tracks(timeline)
+    data = pd.concat([tracks.assign(kind="trace"),
+                      _marks(tracks, timeline, selected)], ignore_index=True)
+
+    axis = alt.Axis(format="%m/%y", labelAngle=0, tickSize=3,
+                    tickCount={"interval": "month", "step": 3})
+    span = pd.to_datetime(data["date"].dropna())
+    x_domain = [d.isoformat() for d in (span.min(), span.max())]
+    # Só o bloco de baixo desenha o eixo do tempo; o de cima o esconde para
+    # os dois ficarem colados. Ambos têm a mesma largura e o mesmo domínio,
+    # então as colunas de mês continuam alinhadas de ponta a ponta.
+    early = _block(data, [*timeline.features, DIVIDER], TRACK_H,
+                   alt.Axis(labels=False, ticks=False, domain=False,
+                            title=None), "early", x_domain)
+    late = _block(data, [MAE, BIAS], PERF_H, axis, "late", x_domain)
+    return alt.vconcat(early, late, spacing=4).resolve_scale(y="independent")
