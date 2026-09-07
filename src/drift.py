@@ -41,12 +41,41 @@ PSI_EPSILON = 1e-4
 PSI_WATCH = 0.1   # atenção
 PSI_ALERT = 0.2   # drift significativo
 
-# Regra de retreino v1 (decisão #8): dispara se RETRAIN_K ou mais features
-# tiverem PSI > PSI_ALERT por RETRAIN_M meses consecutivos. K e M são
-# candidatos a recalibração depois de ver os números reais da pandemia
-# (decisão em aberto no CLAUDE.md).
+# --- Gatilhos de retreino (decisão #8) --------------------------------------
+# São DOIS gatilhos independentes sobre os mesmos meses, não um só:
+#
+#   drift        — K features com PSI > PSI_ALERT por M meses seguidos. Só
+#                  olha INPUTS: disponível assim que o mês é reproduzido,
+#                  sem esperar ground truth. É o alerta precoce.
+#   performance  — MAE acima do holdout de 2019 por uma margem, por M meses
+#                  seguidos. Depende do feedback ter chegado: é a
+#                  confirmação atrasada.
+#
+# Eles existem separados porque DISCORDAM, e cada discordância diz uma coisa
+# diferente. Nos 24 meses replayados de 2020-2021:
+#   jun/2020–mar/2021  drift vermelho, performance verde — os inputs estão
+#                      longe de 2019, mas o modelo voltou a acertar;
+#   out–dez/2021       drift verde, performance vermelha — os inputs
+#                      voltaram para perto de 2019 e o erro NÃO voltou.
+# Um gatilho só de drift dá alta ao paciente em out/2021 com MAE 5.4 contra
+# 3.99 do holdout. Daí o segundo.
 RETRAIN_K = 2
 RETRAIN_M = 2
+
+# Margem do gatilho de performance, relativa ao MAE do holdout (não
+# absoluta: acompanha o modelo se o holdout mudar). Calibrada contra a série
+# real — com +15% o alarme fica ligado 17 dos 24 meses (mesmo defeito que
+# ele deveria corrigir) e com +35% ele perde quase todo o 2021. Com +25% ele
+# acende exatamente nos dois episódios reais de degradação e fica quieto no
+# meio, onde o modelo de fato se recuperou.
+PERF_TOLERANCE = 0.25
+PERF_M = 2
+
+# Piso de pares predição/feedback para julgar performance de um mês. Sem
+# ele, um mês com 3 feedbacks decide um gatilho de retreino.
+PERF_MIN_FEEDBACK = 100
+
+STATUS_SEVERITY = {"green": 0, "yellow": 1, "red": 2}
 
 
 def psi_from_props(observed: np.ndarray, expected: np.ndarray,
@@ -140,26 +169,93 @@ def ks_vs_training(series: pd.Series, spec: dict) -> float:
     return float(np.max(np.abs(prod_cdf - train_cdf)))
 
 
-def retrain_status(alert_counts: list[int], k: int = RETRAIN_K,
-                   m: int = RETRAIN_M) -> str:
-    """Aplica a regra de retreino a uma janela de meses.
+def streak_status(flags: list[bool], m: int) -> str:
+    """Semáforo de uma condição booleana avaliada mês a mês.
 
-    `alert_counts`: nº de features com PSI > PSI_ALERT por mês, em ordem
-    cronológica (último elemento = mês avaliado). Meses sem dados não
-    entram na lista — sem medição não há como afirmar streak.
+    `flags` em ordem cronológica, um por mês COM medição — mês sem dados
+    não entra na lista, porque sem medição não há como afirmar nem negar
+    streak. O último elemento é o mês avaliado.
 
-    - "red": os últimos `m` meses todos têm >= k features em alerta
-      (streak completa => retreinar);
-    - "yellow": o mês avaliado tem >= k features em alerta, mas a streak
-      ainda não fechou (pode ser outlier de um mês só — monitorar);
+    - "red": os últimos `m` meses todos estouraram (streak fechada);
+    - "yellow": o mês avaliado estourou, mas a streak não fechou (pode ser
+      outlier de um mês só — monitorar);
     - "green": caso contrário.
+
+    Os dois gatilhos do projeto compartilham esta forma e diferem só na
+    condição que produz `flags`.
     """
-    recent = alert_counts[-m:]
-    if len(recent) == m and all(count >= k for count in recent):
+    recent = flags[-m:]
+    if len(recent) == m and all(recent):
         return "red"
-    if alert_counts and alert_counts[-1] >= k:
+    if flags and flags[-1]:
         return "yellow"
     return "green"
+
+
+def retrain_status(alert_counts: list[int], k: int = RETRAIN_K,
+                   m: int = RETRAIN_M) -> str:
+    """Gatilho de DRIFT: >= k features com PSI > PSI_ALERT por m meses.
+
+    `alert_counts`: nº de features em alerta por mês, cronológico.
+    """
+    return streak_status([count >= k for count in alert_counts], m)
+
+
+def performance_threshold(holdout_mae: float,
+                          tolerance: float = PERF_TOLERANCE) -> float:
+    """MAE a partir do qual o mês conta como degradado."""
+    return holdout_mae * (1 + tolerance)
+
+
+def performance_status(mae_values: list[float], holdout_mae: float,
+                       tolerance: float = PERF_TOLERANCE,
+                       m: int = PERF_M) -> str:
+    """Gatilho de PERFORMANCE: MAE acima do limiar por m meses seguidos.
+
+    `mae_values`: MAE por mês, cronológico, só dos meses com feedback
+    suficiente (>= PERF_MIN_FEEDBACK pares) — mês sem confirmação não
+    entra, mesma convenção do gatilho de drift para mês sem dados.
+    """
+    threshold = performance_threshold(holdout_mae, tolerance)
+    return streak_status([mae > threshold for mae in mae_values], m)
+
+
+def worst_status(*statuses: str) -> str:
+    """O mais severo entre os gatilhos — o parecer geral do mês."""
+    return max(statuses, key=STATUS_SEVERITY.__getitem__)
+
+
+def acknowledgement_flags(months: list[str], statuses: list[str],
+                          acknowledged: set[str]) -> list[str | None]:
+    """Para cada mês, qual reconhecimento está silenciando o alarme (ou None).
+
+    Um reconhecimento (o botão "disparar retreino" do dashboard) silencia o
+    EPISÓDIO em curso, não o gatilho para sempre: vale do mês em que foi
+    registrado em diante e **expira no primeiro mês em que o gatilho volta a
+    verde**. Condição resolvida, alarme rearmado — episódio novo volta a
+    tocar.
+
+    Aplicar isto ao status de CADA gatilho separadamente, nunca ao parecer
+    geral: na série real o drift esfria em out/2021 enquanto a performance
+    segue ruim, então o "pior dos dois" nunca volta a verde e um único
+    reconhecimento em 2020 silenciaria 2021 inteiro.
+
+    Silenciar não apaga o sinal: o status bruto continua o que os números
+    dizem, e isto é a camada de operação em cima dele. Um vermelho
+    reconhecido continua vermelho; o dashboard é que o desenha apagado.
+
+    Reconhecimento registrado num mês verde não ativa nada — não há
+    episódio para silenciar.
+    """
+    source: list[str | None] = []
+    active: str | None = None
+    for month, status in zip(months, statuses, strict=True):
+        if status == "green":
+            active = None
+        elif month in acknowledged:
+            active = month
+        source.append(active)
+    return source
 
 
 def compute_drift(df: pd.DataFrame, specs: dict) -> dict:

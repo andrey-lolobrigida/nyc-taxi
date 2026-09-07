@@ -79,20 +79,87 @@ class PerformanceResponse(BaseModel):
                     "para o dashboard alinhar as curvas")
 
 
+Status = Literal["green", "yellow", "red"]
+
+
+class MonthVerdict(BaseModel):
+    """O parecer de retreino de um mês: dois gatilhos e o pior dos dois.
+
+    Os dois status são BRUTOS — o que os números dizem, sem desconto. O
+    reconhecimento (o botão do dashboard) não muda o status: ele aparece ao
+    lado, como `*_acknowledged_month`, e o dashboard é que desenha o alarme
+    apagado. Assim o sinal continua auditável depois de alguém dizer "eu
+    vi".
+
+    O reconhecimento vale POR GATILHO, não sobre o parecer geral: na série
+    real o drift esfria antes da performance, e um reconhecimento aplicado
+    ao geral nunca expiraria.
+    """
+
+    status: Status = Field(description="o mais severo entre os dois gatilhos")
+    drift_status: Status = Field(
+        description="K features com PSI > alerta por M meses — alerta "
+                    "precoce, não depende de ground truth")
+    drift_acknowledged_month: str | None = Field(
+        default=None,
+        description="mês do reconhecimento que silencia este alarme; None "
+                    "se não há reconhecimento vigente")
+    performance_status: Status = Field(
+        description="MAE acima do holdout por uma margem, por M meses — "
+                    "confirmação atrasada, só existe com feedback")
+    performance_acknowledged_month: str | None = None
+
+
 class RetrainMonth(BaseModel):
+    """Um mês da janela avaliada, com os insumos dos dois gatilhos."""
+
     month: str
     n_alert: int
     alert_features: list[str]
+    mae_min: float | None
 
 
 class RetrainCheckResponse(BaseModel):
     month: str
-    status: Literal["green", "yellow", "red"]
+    verdict: MonthVerdict
+    mae_threshold_min: float = Field(
+        description="MAE a partir do qual o mês conta como degradado "
+                    "(holdout × (1 + tolerância))")
     rule: dict[str, float] = Field(
-        description="parâmetros vigentes da regra (k, m, psi_alert)")
+        description="parâmetros vigentes (k, m, psi_alert, perf_tolerance, "
+                    "perf_m, perf_min_feedback)")
     months: list[RetrainMonth] = Field(
         description="janela avaliada (só meses com dados), em ordem "
                     "cronológica")
+
+
+class RetrainTriggerRequest(BaseModel):
+    """Corpo do botão "disparar retreino" do dashboard."""
+
+    month: str = Field(
+        pattern=r"^\d{4}-(0[1-9]|1[0-2])$",
+        description="mês do mundo simulado cujo alarme está sendo "
+                    "reconhecido")
+    note: str | None = Field(
+        default=None, max_length=500,
+        description="justificativa livre de quem clicou")
+
+
+class RetrainTriggerResponse(BaseModel):
+    """O que foi registrado. Nenhum modelo é treinado: retreinar está fora
+    do escopo deste projeto, que é de monitoramento. O evento existe para o
+    dashboard distinguir "estourou" de "estourou e ninguém atendeu"."""
+
+    id: int
+    month: str
+    created_at: str
+    triggered_by: str = Field(
+        description="qual gatilho estava aceso quando o botão foi clicado: "
+                    "drift, performance, both ou none")
+    retrained: Literal[False] = Field(
+        default=False,
+        description="sempre False — o pipeline de retreino é mock por "
+                    "escopo, e o contrato diz isso em voz alta")
 
 
 class TimelineMonth(BaseModel):
@@ -109,7 +176,7 @@ class TimelineMonth(BaseModel):
     rmse_min: float | None
     median_ae_min: float | None
     bias_min: float | None
-    retrain_status: Literal["green", "yellow", "red"]
+    verdict: MonthVerdict
 
 
 class TimelineResponse(BaseModel):
@@ -122,4 +189,10 @@ class TimelineResponse(BaseModel):
         description="features monitoradas, na ordem do schema do modelo")
     thresholds: dict[str, float]
     rule: dict[str, float]
+    mae_threshold_min: float = Field(
+        description="limiar do gatilho de performance, para o dashboard "
+                    "desenhar a linha sem recalcular a regra")
     holdout_reference: dict[str, float]
+    retrain_events: list[dict] = Field(
+        default_factory=list,
+        description="reconhecimentos registrados, mais recente primeiro")

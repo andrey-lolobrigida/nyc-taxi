@@ -149,12 +149,61 @@ termostato. Thresholds explícitos (convenção comum de mercado para PSI):
 | 0.1 – 0.2 | Atenção (monitorar de perto) |
 | > 0.2 | Drift significativo |
 
-Lógica de decisão (v1, ajustável): o gatilho de retreino dispara se
-**K ou mais features** apresentarem PSI > 0.2 por **M meses consecutivos**
-(valores iniciais sugeridos: K=2, M=2 — evita alarme por outlier de um mês
-só). A regra fica implementada num endpoint tipo
-`GET /monitoring/retrain-check?month=...`, que o dashboard exibe como
-status (verde/amarelo/vermelho) ao lado do botão de retreino.
+**São dois gatilhos independentes, não um** (v2, calibrado em set/2026
+contra os 24 meses replayados — ver histórico no fim desta seção):
+
+| gatilho | condição | disponibilidade |
+|---------|----------|-----------------|
+| **drift** | K=2 features com PSI > 0.2 por M=2 meses consecutivos | imediata — só olha inputs |
+| **performance** | MAE > holdout × 1,25 por M=2 meses consecutivos | atrasada — exige feedback |
+
+O parecer geral é o **pior dos dois**. Os dois existem separados porque
+**discordam nas duas direções** na série real, e cada discordância diz uma
+coisa diferente:
+
+- jun/2020–mar/2021 — drift vermelho, performance verde: os inputs estão
+  longe de 2019, mas o modelo voltou a acertar. Drift não é degradação.
+- out–dez/2021 — drift verde, performance vermelha: os inputs voltaram
+  para perto de 2019 e o erro **não** voltou (MAE 5,4 contra 3,99 do
+  holdout, viés −2,6). Um gatilho só de drift dá alta ao paciente aqui.
+
+A margem de +25% no MAE é calibrada, não escolhida a esmo: com +15% o
+alarme fica ligado 17 dos 24 meses (o mesmo defeito que ele deveria
+corrigir), e com +35% ele perde quase todo o 2021.
+
+**Reconhecimento (o botão "disparar retreino").** O botão é mock e
+continua mock: **retreinar está fora do escopo deste projeto**, que é de
+monitoramento. O que ele faz de útil é gravar em `retrain_events` que um
+humano viu o alarme e assumiu a ação — e é isso que **silencia** o alarme.
+Sem esse estado, o dashboard não distingue "estourou" de "estourou e
+ninguém atendeu", e a série real fica 17 meses em vermelho sem que isso
+signifique nada.
+
+Regras do reconhecimento:
+1. Ele **não muda o status bruto**. Um vermelho reconhecido continua
+   vermelho na API; o dashboard é que o desenha apagado. O sinal segue
+   auditável depois de alguém dizer "eu vi".
+2. Ele vale **por gatilho**, nunca sobre o parecer geral — o geral só
+   voltaria a verde quando os dois voltassem, e na série real isso nunca
+   acontece, então um clique em 2020 silenciaria 2021 inteiro.
+3. Ele **expira sozinho** no primeiro mês em que aquele gatilho volta a
+   verde. Episódio resolvido, alarme rearmado.
+
+Endpoints: `GET /monitoring/retrain-check?month=...` (parecer de um mês),
+`GET /monitoring/timeline` (a série toda) e
+`POST /monitoring/retrain-trigger` (registra o reconhecimento — fica na
+API, e não no dashboard, porque o dashboard nunca toca o banco).
+
+**Histórico.** A v1 era só o gatilho de drift (K=2, M=2). Os 24 meses
+replayados mostraram que ela fica 🔴 de mai/2020 a set/2021 — 17 meses
+seguidos — e depois volta a 🟢 em out/2021 com o MAE ainda em 5,4. K e M
+foram **mantidos**: o alarme longo não era erro de threshold, era a regra
+certa sem ninguém atendendo o alarme (daí o reconhecimento), e o 🟢
+indevido era cegueira a performance (daí o segundo gatilho). `trip_type`
+marca PSI 0,24 em jan/2020 — mês do grupo de controle — e portanto
+contamina a contagem de K; ficou na conta mesmo assim, porque com o
+reconhecimento em vigor ele só muda o status em jul–set/2021, meses em que
+o alarme já estaria silenciado.
 
 ## Narrativa do dashboard: alerta precoce vs. confirmação atrasada
 
@@ -195,10 +244,11 @@ combinação "sismógrafo + certificado"):
      Seção 1 — Exame de distribuição (tabela feature | PSI | leitura + KS);
      Seção 2 — Desempenho aferido (MAE/RMSE/viés vs. holdout, n, cobertura
      de feedback);
-     Seção 3 — Parecer de retreino (features em alerta, streak, status
-     verde/amarelo/vermelho + botão "disparar retreino" mock que só
-     registra a intenção).
-- **Dados**: novo endpoint `GET /monitoring/timeline` (a implementar)
+     Seção 3 — Parecer de retreino (os dois gatilhos lado a lado, cada um
+     com seu status verde/amarelo/vermelho e a tarja de reconhecimento
+     quando silenciado; features em alerta, streak, MAE vs. limiar +
+     botão "disparar retreino" mock, que registra o reconhecimento).
+- **Dados**: o endpoint `GET /monitoring/timeline`
   agrega drift + performance + retrain-status de todos os meses
   disponíveis numa resposta; o Streamlit chama uma vez (`st.cache_data`)
   e slider/seções são filtragem local. Dashboard continua consumindo SÓ a
@@ -231,13 +281,22 @@ taxi-mlops/
 │   ├── routers/
 │   │   ├── predict.py             # POST /predict
 │   │   ├── feedback.py            # POST /feedback
-│   │   └── monitoring.py          # GET /monitoring/* (drift, performance, retrain-check)
+│   │   └── monitoring.py          # /monitoring/* (drift, performance, timeline,
+│   │                              #   retrain-check, retrain-trigger)
 │   ├── db.py                      # setup do SQLite (WAL), log de predições e feedback
 │   └── schemas.py                 # Pydantic models
-├── dashboard/
-│   └── app.py                     # Streamlit, consome só a API (nunca acessa DB direto)
+├── dashboard/                     # Streamlit, consome só a API (nunca acessa DB direto)
+│   ├── app.py                     # a página: layout e ligação das peças
+│   ├── config.py                  # ambiente (URL da API)
+│   ├── theme.py                   # paleta, tema do Altair, CSS
+│   ├── monitoring.py              # cliente da API — única porta de entrada de dados
+│   ├── seismograph.py             # o gráfico de pistas
+│   └── panels.py                  # os três painéis do mês selecionado
+├── .streamlit/config.toml         # tema do Streamlit (decisão de design, ver acima)
+├── Makefile                       # comandos do projeto na ordem das fases
 ├── scripts/
-│   └── simulate_production.py    # replay amostrado de 2020-2021 mês a mês contra a API
+│   ├── simulate_production.py    # replay amostrado de 2020-2021 mês a mês contra a API
+│   └── sanity_check_report.py    # grupo de controle (jan-fev/2020) como relatório
 └── tests/
     └── ...                        # testes básicos de features.py e drift.py
 ```
@@ -306,9 +365,13 @@ taxi-mlops/
       esse n o grupo de controle ficou estável (PSI < 0.04 em todas as
       features exceto a deriva secular real de trip_type), e meses de
       pandemia menores que 30k vão inteiros.
-- [ ] Calibrar K e M da regra de retreino depois de ver os números reais.
-- [ ] Definir se o "retreino automático" da fase 3 vai de fato re-treinar
-      o modelo ou só simular o disparo do pipeline.
+- [x] Calibrar K e M da regra de retreino → **K=2 e M=2 mantidos**; o que
+      entrou foi um segundo gatilho (performance) e o estado de
+      reconhecimento. Ver decisão #8.
+- [x] Definir se o "retreino automático" da fase 3 vai de fato re-treinar
+      o modelo ou só simular o disparo → **só simular**. Retreinar está
+      fora do escopo: este projeto é de monitoramento. O mock virou algo
+      útil ao gravar o reconhecimento, que silencia o alarme.
 - [ ] Definir se `evidently` entra como comparação com a implementação manual
       de PSI/KS, ou fica de fora do escopo v1.
 - [ ] Definir se o front React (mencionado como ambição futura) entra no

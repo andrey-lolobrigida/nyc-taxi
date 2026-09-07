@@ -46,11 +46,20 @@ MARK_SIZE = {"stable": 36, "watch": 90, "alert": 130, "neutro": 40}
 
 STATUS_LABEL = {"green": "verde", "yellow": "amarelo", "red": "vermelho"}
 STATUS_COLOR = {"green": STABLE, "yellow": WATCH, "red": ALERT}
+# Leitura do semáforo de UM gatilho — a forma é a mesma nos dois (streak de
+# M meses), só muda a condição que estoura.
 STATUS_READING = {
-    "green": "sem streak — nenhuma ação",
-    "yellow": "mês em alerta, streak não fechou — monitorar",
-    "red": "streak fechada — retreinar",
+    "green": "sem streak",
+    "yellow": "estourou o mês, streak não fechou",
+    "red": "streak fechada",
 }
+# Leitura do parecer GERAL (o pior dos dois gatilhos) — aqui sim há ação.
+VERDICT_READING = {
+    "green": "nenhuma ação",
+    "yellow": "monitorar de perto",
+    "red": "retreinar",
+}
+TRIGGER_LABEL = {"drift": "drift", "performance": "performance"}
 
 
 @alt.theme.register("taxi_dark", enable=True)
@@ -117,6 +126,18 @@ CSS = f"""
   .pill {{ font:10px/1 {SANS}; letter-spacing:.14em; text-transform:uppercase;
            border:1px solid; border-radius:2px; padding:5px 9px; }}
   .verdict-text {{ font:11px/1.4 {SANS}; color:{MUTED}; }}
+  /* Uma linha por gatilho. `.acked` apaga a pílula em vez de trocar a cor:
+     reconhecer não muda o que os números dizem, só quem está de plantão. */
+  .trigger {{ display:flex; align-items:baseline; gap:9px; margin-bottom:7px; }}
+  .trigger .name {{ font:10px/1 {SANS}; letter-spacing:.12em;
+      text-transform:uppercase; color:{INK}; min-width:82px; }}
+  .trigger .hint {{ font:10px/1.4 {SANS}; color:{MUTED}; }}
+  /* Vale para a linha de gatilho e para o parecer geral: reconhecido
+     apaga, nunca troca de cor — o status bruto continua legível. */
+  .acked .pill {{ opacity:.38; }}
+  .trigger.acked .name {{ color:{MUTED}; }}
+  .ack-tag {{ font:10px/1 {MONO}; color:{MUTED}; border:1px solid {HAIRLINE};
+      border-radius:2px; padding:4px 6px; }}
   div[data-testid="stButton"] button {{ width:100%; border-radius:2px;
       border:1px solid {HAIRLINE}; background:{PANEL}; color:{INK};
       font:10px/1 {SANS}; letter-spacing:.14em; text-transform:uppercase;

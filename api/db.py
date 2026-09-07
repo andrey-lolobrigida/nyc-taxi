@@ -41,6 +41,26 @@ CREATE TABLE IF NOT EXISTS predictions (
 );
 CREATE INDEX IF NOT EXISTS idx_predictions_pickup
     ON predictions (pickup_datetime);
+
+-- Reconhecimentos do gatilho de retreino: o botão do dashboard não treina
+-- nada (o pipeline de retreino é mock por escopo — este projeto é de
+-- MONITORAMENTO). O que ele faz é registrar que um humano viu o alarme e
+-- assumiu a ação, que é o que silencia o alarme até o episódio se resolver.
+-- Sem isso o dashboard não distingue "estourou" de "estourou e ninguém
+-- atendeu" — e a série real fica 17 meses em vermelho sem essa distinção.
+--
+-- `month` é o mês do MUNDO SIMULADO reconhecido (2020-2021); `created_at` é
+-- relógio de parede de quem clicou. Mesma separação de relógios do resto do
+-- monitoramento.
+CREATE TABLE IF NOT EXISTS retrain_events (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at   TEXT NOT NULL,
+    month        TEXT NOT NULL,
+    triggered_by TEXT NOT NULL,
+    note         TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_retrain_events_month
+    ON retrain_events (month);
 """
 
 
@@ -104,3 +124,36 @@ def apply_feedback(conn: sqlite3.Connection, prediction_id: str,
             (actual_duration_min, feedback_at, prediction_id),
         )
     return "ok"
+
+
+def insert_retrain_event(conn: sqlite3.Connection, month: str,
+                         triggered_by: str, created_at: str,
+                         note: str | None = None) -> int:
+    """Registra um reconhecimento do gatilho. Retorna o id gravado."""
+    with conn:
+        cursor = conn.execute(
+            "INSERT INTO retrain_events (created_at, month, triggered_by,"
+            " note) VALUES (?, ?, ?, ?)",
+            (created_at, month, triggered_by, note),
+        )
+    return int(cursor.lastrowid)
+
+
+def acknowledged_months(conn: sqlite3.Connection) -> set[str]:
+    """Meses do mundo simulado que têm ao menos um reconhecimento.
+
+    Conjunto, não lista: clicar duas vezes no mesmo mês é a mesma
+    informação. A validade de cada reconhecimento (quando expira) é conta
+    de drift.acknowledgement_flags, não do banco.
+    """
+    return {row["month"] for row in
+            conn.execute("SELECT DISTINCT month FROM retrain_events")}
+
+
+def retrain_events(conn: sqlite3.Connection) -> list[dict]:
+    """Histórico completo, mais recente primeiro (para auditoria)."""
+    rows = conn.execute(
+        "SELECT id, created_at, month, triggered_by, note FROM retrain_events"
+        " ORDER BY created_at DESC, id DESC"
+    ).fetchall()
+    return [dict(row) for row in rows]

@@ -20,11 +20,13 @@ import streamlit as st
 @dataclass(frozen=True)
 class Timeline:
     drift: pd.DataFrame        # formato longo: mês × feature
-    performance: pd.DataFrame  # uma linha por mês
+    performance: pd.DataFrame  # uma linha por mês, com o veredito achatado
     features: list[str]
     thresholds: dict[str, float]
     rule: dict[str, float]
     holdout: dict[str, float]
+    mae_threshold: float       # limiar do gatilho de performance
+    events: list[dict]         # reconhecimentos, mais recente primeiro
 
     @property
     def months(self) -> list[str]:
@@ -71,8 +73,12 @@ def timeline(api_url: str) -> Timeline:
             drift_rows.append({"date": date, "month": month["month"],
                                "feature": name, "psi": entry["psi"],
                                "ks": entry["ks"], "level": entry["level"]})
-        perf_rows.append({"date": date, **{k: v for k, v in month.items()
-                                           if k != "features"}})
+        # `verdict` é achatado na mesma linha: a série vira DataFrame, e
+        # coluna aninhada não serve nem para filtro nem para gráfico.
+        perf_rows.append({"date": date,
+                          **{k: v for k, v in month.items()
+                             if k not in ("features", "verdict")},
+                          **month["verdict"]})
     return Timeline(
         drift=pd.DataFrame(drift_rows),
         performance=pd.DataFrame(perf_rows),
@@ -80,4 +86,19 @@ def timeline(api_url: str) -> Timeline:
         thresholds=payload["thresholds"],
         rule=payload["rule"],
         holdout=payload["holdout_reference"],
+        mae_threshold=payload["mae_threshold_min"],
+        events=payload["retrain_events"],
     )
+
+
+def trigger_retrain(api_url: str, month: str, note: str | None = None) -> dict:
+    """Registra o reconhecimento do alarme na API. Nada é treinado.
+
+    Sem cache, ao contrário das leituras acima: é escrita, e o resultado
+    muda a timeline (o alarme passa a aparecer silenciado). Quem chama
+    precisa limpar o cache de `timeline` depois.
+    """
+    response = requests.post(f"{api_url}/monitoring/retrain-trigger",
+                             json={"month": month, "note": note}, timeout=120)
+    response.raise_for_status()
+    return response.json()

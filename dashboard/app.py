@@ -2,7 +2,7 @@
 
 Só o layout mora aqui; cada peça tem seu módulo vizinho:
 
-    config.py       ambiente (URL da API, caminho do log de intenções)
+    config.py       ambiente (URL da API)
     theme.py        paleta, tema do Altair, CSS
     monitoring.py   cliente da API — a única porta de entrada de dados
     seismograph.py  o gráfico de pistas
@@ -102,12 +102,20 @@ def main() -> None:
                     unsafe_allow_html=True)
     with right:
         st.markdown(panels.retrain(row, timeline.alert_streak(month),
-                                   timeline.rule), unsafe_allow_html=True)
+                                   timeline.rule, timeline.mae_threshold),
+                    unsafe_allow_html=True)
         if st.button(f"disparar retreino · {month}"):
-            panels.record_intent(month, row)
-            st.success(f"Intenção registrada em {settings.intents_path.name}. "
-                       "Nenhum modelo foi treinado — o pipeline de retreino "
-                       "ainda é um mock.")
+            # Quem grava é a API (decisão #5: o dashboard nunca abre o
+            # banco). O cache da timeline tem que cair junto, senão a
+            # página segue mostrando o alarme sem o reconhecimento.
+            event = monitoring.trigger_retrain(settings.api_url, month)
+            monitoring.timeline.clear()
+            st.success(
+                f"Reconhecimento registrado (#{event['id']}, gatilho aceso: "
+                f"{event['triggered_by']}). Nenhum modelo foi treinado — "
+                "retreinar está fora do escopo deste projeto. O alarme fica "
+                "silenciado até o gatilho voltar a verde.")
+            st.rerun()
 
 
 if __name__ == "__main__":

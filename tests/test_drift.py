@@ -9,14 +9,19 @@ import pandas as pd
 import pytest
 
 from drift import (
+    acknowledgement_flags,
     compute_drift,
     compute_psi,
     ks_statistic,
     ks_vs_training,
     observed_props_categorical,
     observed_props_continuous,
+    performance_status,
+    performance_threshold,
     psi_from_props,
     retrain_status,
+    streak_status,
+    worst_status,
 )
 
 RNG_SEED = 42
@@ -248,6 +253,121 @@ class TestRetrainStatus:
     def test_m_maior(self):
         assert retrain_status([2, 2, 2], k=2, m=3) == "red"
         assert retrain_status([0, 2, 2], k=2, m=3) == "yellow"
+
+
+class TestPerformanceStatus:
+    # Gatilho de performance: MAE > holdout * (1 + tol) por M meses.
+    HOLDOUT = 4.0  # limiar com tol=0.25 => 5.0
+
+    def test_limiar_e_relativo_ao_holdout(self):
+        assert performance_threshold(4.0, 0.25) == pytest.approx(5.0)
+        assert performance_threshold(3.99, 0.25) == pytest.approx(4.9875)
+
+    def test_dentro_da_margem_e_verde(self):
+        # Pior que o holdout, mas dentro da tolerância: não é degradação.
+        assert performance_status([4.5, 4.9], self.HOLDOUT, m=2) == "green"
+
+    def test_um_mes_ruim_e_amarelo(self):
+        assert performance_status([4.0, 6.0], self.HOLDOUT, m=2) == "yellow"
+
+    def test_streak_completa_e_vermelho(self):
+        assert performance_status([5.5, 6.0], self.HOLDOUT, m=2) == "red"
+
+    def test_mes_bom_no_meio_reseta(self):
+        assert performance_status([6.0, 4.0, 6.0], self.HOLDOUT, m=2) == "yellow"
+
+    def test_exatamente_no_limiar_nao_estoura(self):
+        # Comparação estrita, como o PSI_ALERT do gatilho de drift.
+        assert performance_status([5.0, 5.0], self.HOLDOUT, m=2) == "green"
+
+    def test_historico_vazio_e_verde(self):
+        # Nenhum mês com feedback suficiente: sem confirmação, sem alarme.
+        assert performance_status([], self.HOLDOUT, m=2) == "green"
+
+    def test_serie_real_acende_onde_o_drift_apaga(self):
+        # out-dez/2021: o drift esfriou e voltou a verde, mas o MAE não
+        # voltou. É o caso que motivou este gatilho (ver drift.py).
+        assert performance_status([5.45, 5.53, 5.38], 3.99) == "red"
+
+    def test_serie_real_fica_quieto_no_novo_normal(self):
+        # jun-set/2020: MAE elevado em relação ao holdout, mas dentro da
+        # margem — o modelo se recuperou enquanto o drift seguia vermelho.
+        assert performance_status([4.96, 4.90, 4.68, 4.55], 3.99) == "green"
+
+
+class TestStreakStatus:
+    def test_compartilhado_pelos_dois_gatilhos(self):
+        # retrain_status é streak_status com a condição de contagem.
+        assert retrain_status([3, 3], k=2, m=2) == streak_status(
+            [True, True], m=2)
+
+    def test_historico_mais_curto_que_m_nao_fecha(self):
+        assert streak_status([True], m=2) == "yellow"
+
+
+class TestWorstStatus:
+    def test_pega_o_mais_severo(self):
+        assert worst_status("green", "red") == "red"
+        assert worst_status("yellow", "green") == "yellow"
+        assert worst_status("green", "green") == "green"
+
+    def test_o_caso_que_motiva_dois_gatilhos(self):
+        # Drift dá alta, performance não: o parecer geral tem que ser o
+        # da performance.
+        assert worst_status("green", "red") == "red"
+
+
+class TestAcknowledgementFlags:
+    # Devolve o mês do reconhecimento que silencia cada mês, ou None.
+    M3 = ["2020-01", "2020-02", "2020-03"]
+
+    def test_sem_reconhecimento_nada_e_silenciado(self):
+        assert acknowledgement_flags(
+            self.M3[:2], ["red", "red"], set()) == [None, None]
+
+    def test_silencia_do_mes_do_clique_em_diante(self):
+        assert acknowledgement_flags(
+            self.M3, ["red", "red", "red"], {"2020-02"}
+        ) == [None, "2020-02", "2020-02"]
+
+    def test_expira_ao_voltar_para_verde(self):
+        # Episódio resolvido: o reconhecimento não vale para o próximo.
+        assert acknowledgement_flags(
+            self.M3, ["red", "green", "red"], {"2020-01"}
+        ) == ["2020-01", None, None]
+
+    def test_episodio_novo_volta_a_tocar(self):
+        # Reconhecido, resolvido, e o alarme rearma sozinho — a razão de a
+        # expiração existir. É o caso real: clique em mai/2020 não pode
+        # silenciar o alarme de performance de 2021.
+        months = ["2020-05", "2020-06", "2020-07", "2021-04", "2021-05"]
+        assert acknowledgement_flags(
+            months, ["red", "red", "green", "yellow", "red"], {"2020-05"}
+        ) == ["2020-05", "2020-05", None, None, None]
+
+    def test_amarelo_mantem_o_episodio_vivo(self):
+        # Só verde encerra o episódio; amarelo ainda é a mesma condição.
+        assert acknowledgement_flags(
+            self.M3, ["red", "yellow", "red"], {"2020-01"}
+        ) == ["2020-01", "2020-01", "2020-01"]
+
+    def test_reconhecer_mes_verde_nao_ativa_nada(self):
+        assert acknowledgement_flags(
+            self.M3[:2], ["green", "red"], {"2020-01"}) == [None, None]
+
+    def test_segundo_reconhecimento_silencia_o_novo_episodio(self):
+        assert acknowledgement_flags(
+            self.M3, ["red", "green", "red"], {"2020-01", "2020-03"}
+        ) == ["2020-01", None, "2020-03"]
+
+    def test_reconhecimento_futuro_nao_vale_para_o_passado(self):
+        assert acknowledgement_flags(
+            self.M3[:2], ["red", "red"], {"2020-02"}) == [None, "2020-02"]
+
+    def test_listas_de_tamanhos_diferentes_estouram(self):
+        # Desalinhamento aqui silenciaria o mês errado, calado.
+        with pytest.raises(ValueError):
+            acknowledgement_flags(self.M3, ["red", "red"], set())
 
 
 class TestComputeDrift:
