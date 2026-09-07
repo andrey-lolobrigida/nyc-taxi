@@ -11,7 +11,7 @@ API_URL   := http://$(API_HOST):$(API_PORT)
 
 .DEFAULT_GOAL := help
 .PHONY: help install data centroids describe eda train evaluate api api-reload \
-        dashboard control sanity replay test clean
+        dashboard control sanity replay seismograph test clean
 
 help:  ## lista os alvos
 	@grep -E '^[a-z][a-z-]*:.*?## ' $(MAKEFILE_LIST) \
@@ -60,6 +60,10 @@ sanity:  ## gera o relatório do controle (reports/monitoring/)
 
 replay:  ## replay da pandemia em diante (mar/2020 a dez/2021)
 	$(PY) scripts/simulate_production.py --start 2020-03 --end 2021-12 \
+	  --api-url $(API_URL)
+
+seismograph:  ## renderiza o sismógrafo em PNG (reports/monitoring/)
+	uv run --with vl-convert-python python scripts/render_seismograph.py \
 	  --api-url $(API_URL)
 
 dashboard:  ## sobe o dashboard Streamlit (só localhost)
