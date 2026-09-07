@@ -19,8 +19,11 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
+    # TestClient do FastAPI (starlette) roda sobre httpx; a versão 1 já sai
+    # com DeprecationWarning, então entra a 2 direto.
+    "httpx2>=2.12.0",
 ]
 
 [tool.pytest.ini_options]
-pythonpath = ["src"]
+pythonpath = ["src", "."]  # "." para `import api` sob pytest
 testpaths = ["tests"]
