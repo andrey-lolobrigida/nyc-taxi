@@ -142,7 +142,7 @@ def retrain(row: pd.Series, streak: int, rule: dict,
         f'<td class="num ref"></td></tr>'
         f'<tr><td>quais</td><td class="num" colspan="2">'
         f"{html.escape(listed)}</td></tr>"
-        f'<tr><td>streak (meses ≥ K)</td><td class="num">{streak}</td>'
+        f'<tr><td>streak · drift</td><td class="num">{streak}</td>'
         f'<td class="num ref"></td></tr>'
         f'<tr><td>MAE do mês</td><td class="num">{mae}</td>'
         f'<td class="num ref">limiar {num(mae_threshold, "{:.2f}")}</td></tr>'

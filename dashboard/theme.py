@@ -129,8 +129,12 @@ CSS = f"""
   /* Uma linha por gatilho. `.acked` apaga a pílula em vez de trocar a cor:
      reconhecer não muda o que os números dizem, só quem está de plantão. */
   .trigger {{ display:flex; align-items:baseline; gap:9px; margin-bottom:7px; }}
+  /* nowrap + flex-shrink:0 juntos: só o nowrap deixaria "PERFORMANCE"
+     vazar, e só o min-width não impede a quebra no meio da palavra (item
+     de flex encolhe abaixo da largura do conteúdo por padrão). */
   .trigger .name {{ font:10px/1 {SANS}; letter-spacing:.12em;
-      text-transform:uppercase; color:{INK}; min-width:82px; }}
+      text-transform:uppercase; color:{INK}; min-width:82px;
+      white-space:nowrap; flex-shrink:0; }}
   .trigger .hint {{ font:10px/1.4 {SANS}; color:{MUTED}; }}
   /* Vale para a linha de gatilho e para o parecer geral: reconhecido
      apaga, nunca troca de cor — o status bruto continua legível. */
