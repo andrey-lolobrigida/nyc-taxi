@@ -26,8 +26,20 @@ monitorar modelo.**
 Foi essa série que fez a regra de retreino deste projeto ter **dois
 gatilhos** em vez de um, e é isso que o dashboard mostra.
 
-<!-- TODO: captura de tela da página inteira (sismógrafo + os três painéis),
-     tirada no navegador depois da revisão visual do painel 3. -->
+### O mesmo argumento, em números exatos
+
+![Os três painéis do mês selecionado, em dez/2021](reports/monitoring/dashboard_panels.png)
+
+Abaixo do sismógrafo, os três painéis destrincham o mês em que a agulha
+está — aqui, **dez/2021**, o segundo caso da tabela acima.
+
+Leia da esquerda para a direita: **nenhuma feature em alerta** (o maior PSI
+é 0,200, na faixa de atenção); o **MAE em 5,38 contra 3,99 do holdout**, com
+viés de −1,83; e o parecer, que é onde os dois se encontram — **drift
+verde** ("sem streak"), **performance vermelha** ("streak fechada"), e o
+veredito geral **vermelho**, porque ele é o pior dos dois.
+
+É o mês em que uma regra só de drift teria dado alta ao modelo.
 
 ### Uma coisa que os dados NÃO mostram
 
