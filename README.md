@@ -1,264 +1,275 @@
-# Vigilância de drift — NYC Green Taxi
+# Drift watch — NYC Green Taxi
 
-Um modelo em produção, dois anos de mundo real passando por cima dele, e a
-pergunta que o projeto existe para responder: **quando é que os sinais que
-você monitora param de dizer o que você acha que dizem?**
+**English** · [Português](README.pt-BR.md)
+
+One model in production, two years of the real world rolling over it, and
+the question this project exists to answer: **when do the signals you
+monitor stop meaning what you think they mean?**
 
 ---
 
-## O gráfico que obrigou o projeto a mudar de ideia
+## The chart that made the project change its mind
 
-![Sismógrafo de drift](reports/monitoring/seismograph.png)
+![Drift seismograph](reports/monitoring/seismograph.png)
 
-Oito features acima do divisor, medidas contra a distribuição congelada de
-2019 (PSI). Erro e viés abaixo dele. Mesmo eixo de tempo, 24 meses de
-produção simulada. Dois trechos dessa série contam histórias opostas:
+Eight features above the divider, measured against the frozen 2019
+distribution (PSI). Error and bias below it. Same time axis, 24 months of
+simulated production. Two stretches of this series tell opposite stories:
 
-| período | data drift | performance | o que está acontecendo |
+| period | data drift | performance | what is happening |
 |---|---|---|---|
-| **jun/2020 – mar/2021** | 🔴 alerta | 🟢 estável | Os inputs estão longe de 2019 — e o modelo voltou a acertar (MAE médio 4,8 contra 3,99 do holdout). |
-| **out – dez/2021** | 🟢 estável | 🔴 alerta | Os inputs voltaram para perto de 2019 — e o erro **não** voltou (MAE médio 5,4; viés negativo). |
+| **Jun 2020 – Mar 2021** | 🔴 alert | 🟢 stable | The inputs are far from 2019 — and the model is accurate again (mean MAE 4.8 vs. 3.99 on the holdout). |
+| **Oct – Dec 2021** | 🟢 stable | 🔴 alert | The inputs are back close to 2019 — and the error did **not** come back down (mean MAE 5.4; negative bias). |
 
-A leitura ingênua do monitoramento de drift — "PSI subiu, modelo piorou;
-PSI desceu, modelo melhorou" — erra nos dois casos. **Monitorar input não é
-monitorar modelo.**
+The naive reading of drift monitoring — "PSI went up, the model got worse;
+PSI went down, the model got better" — is wrong in both cases. **Monitoring
+inputs is not monitoring the model.**
 
-Foi essa série que fez a regra de retreino deste projeto ter **dois
-gatilhos** em vez de um, e é isso que o dashboard mostra.
+This series is why the retraining rule in this project has **two triggers**
+instead of one, and that is what the dashboard shows.
 
-### O mesmo argumento, em números exatos
+### The same argument, in exact numbers
 
-![Os três painéis do mês selecionado, em dez/2021](reports/monitoring/dashboard_panels.png)
+![The three panels for the selected month, Dec 2021](reports/monitoring/dashboard_panels.png)
 
-Abaixo do sismógrafo, os três painéis destrincham o mês em que a agulha
-está — aqui, **dez/2021**, o segundo caso da tabela acima.
+Below the seismograph, three panels break down the month the needle is on —
+here, **Dec 2021**, the second case in the table above.
 
-Leia da esquerda para a direita: **nenhuma feature em alerta** (o maior PSI
-é 0,200, na faixa de atenção); o **MAE em 5,38 contra 3,99 do holdout**, com
-viés de −1,83; e o parecer, que é onde os dois se encontram — **drift
-verde** ("sem streak"), **performance vermelha** ("streak fechada"), e o
-veredito geral **vermelho**, porque ele é o pior dos dois.
+Read left to right: **no feature in alert** (the highest PSI is 0.200, in
+the warning band); **MAE at 5.38 vs. 3.99 on the holdout**, with a bias of
+−1.83; and the verdict, which is where the two meet — **drift green** ("no
+streak"), **performance red** ("streak closed"), and the overall verdict
+**red**, because it is the worse of the two.
 
-É o mês em que uma regra só de drift teria dado alta ao modelo.
+This is the month in which a drift-only rule would have discharged the
+patient.
 
-### Uma coisa que os dados NÃO mostram
+### One thing the data does NOT show
 
-Vale dizer o que não aconteceu, porque é o que costuma ser vendido: **não
-houve alerta precoce no sentido cronológico.** Em mar/2020 o PSI está
-abaixo do limiar de alerta em todas as features e o MAE em 4,03 (holdout:
-3,99). Em abr/2020 os dois estouram **no mesmo mês**. O drift não se moveu
-antes do erro.
+It is worth stating what did not happen, because it is what usually gets
+sold: **there was no early warning in the chronological sense.** In March
+2020 PSI is below the alert threshold on every feature and MAE is 4.03
+(holdout: 3.99). In April 2020 both blow up **in the same month**. Drift did
+not move before the error did.
 
-A vantagem do drift é outra, e é de **disponibilidade**: o PSI existe no
-instante em que a corrida acontece, porque só depende dos inputs. O MAE só
-existe depois que a duração real chega — dias ou semanas mais tarde, em
-produção de verdade. É por isso que o dashboard separa "alerta precoce" de
-"confirmação atrasada", e não porque uma curva anda na frente da outra.
-
----
-
-## Por que isso não é o tutorial de sempre
-
-O dataset é o *hello world* de MLOps, e isso é proposital: com um dataset
-conhecido, quem avalia já tem calibração e as diferenças saltam. As
-diferenças são estas:
-
-- **O drift é real, não sintético.** Nada de injetar ruído gaussiano numa
-  feature para "simular" drift. O drift aqui é a pandemia de 2020 batendo
-  num modelo treinado em 2019, com tudo que ela traz junto: colapso de
-  volume, mudança de mistura de zonas, e uma relação features→duração que
-  muda de regime.
-- **Grupo de controle temporal.** Jan e fev de 2020 ainda são mundo normal.
-  Se o PSI já aparecesse alto neles, o bug estaria na implementação, não no
-  mundo — e nenhum número da pandemia seria confiável. Esse teste roda
-  **antes** de qualquer interpretação e está materializado em
-  [`reports/monitoring/sanity_check_report.md`](reports/monitoring/sanity_check_report.md).
-- **Bins congelados de verdade.** Os cortes do PSI são calculados uma vez na
-  fatia de treino e gravados no `metadata.json`. Régua que muda de tamanho
-  não mede nada.
-- **O leakage foi diagnosticado, não ignorado.** `trip_distance` é a
-  distância do taxímetro: só existe quando a corrida acaba. Ela sai, e no
-  lugar entra haversine entre centroides das zonas de embarque e desembarque
-  — informação disponível no momento do embarque.
-- **O bloco MNAR foi investigado.** `trip_type` vem nulo em 10,7% das
-  corridas do dataset — e em 20,5% do holdout de fim de 2019, porque essa
-  fração cresce ao longo do ano. A ausência não é aleatória, nem estável.
-  Virou categoria própria, feature do modelo, e item de monitoramento.
-- **A regra de retreino é calibrada contra a série real**, com histórico do
-  que foi descartado e por quê — não um threshold escolhido no chute.
-- **PSI e KS na unha.** Implementados à mão antes de qualquer biblioteca
-  pronta, com testes.
-
-O modelo é o **veículo**, não o ponto. Ele existe para ter algo real
-apodrecendo em produção enquanto o mundo muda.
+The advantage of drift lies elsewhere, in **availability**: PSI exists the
+moment the trip happens, because it depends only on the inputs. MAE only
+exists once the actual duration arrives — days or weeks later, in real
+production. That is why the dashboard separates "early warning" from
+"delayed confirmation", and not because one curve runs ahead of the other.
 
 ---
 
-## O que está construído
+## Why this is not the usual tutorial
 
-**Fase 1 — ML tradicional.** Sem notebooks: scripts `.py` determinísticos
-que geram outputs materializados (PNGs, relatórios `.md` gerados
-programaticamente, modelo serializado + `metadata.json`).
-[EDA](reports/eda/eda_report.md) · [validação](reports/evaluation/evaluation_report.md)
-· [dicionário de dados](reports/data_dictionary.md)
+This dataset is the *hello world* of MLOps, and that is on purpose: with a
+well-known dataset, the reviewer is already calibrated and the differences
+stand out. Here they are:
 
-**Fase 2 — API de inferência.** FastAPI com `POST /predict` (rápido, loga
-cada request) e `POST /feedback` (o ground truth que chega depois). SQLite
-em modo WAL.
+- **The drift is real, not synthetic.** No injecting Gaussian noise into a
+  feature to "simulate" drift. The drift here is the 2020 pandemic hitting a
+  model trained in 2019, with everything it brings along: volume collapse, a
+  shift in the zone mix, and a features→duration relationship that changes
+  regime.
+- **Temporal control group.** January and February 2020 are still the normal
+  world. If PSI were already high there, the bug would be in the
+  implementation, not in the world — and no pandemic number could be
+  trusted. This test runs **before** any interpretation and is materialized
+  in [`reports/monitoring/sanity_check_report.md`](reports/monitoring/sanity_check_report.md)
+  (in Portuguese).
+- **Truly frozen bins.** PSI cut points are computed once on the training
+  slice and stored in `metadata.json`. A ruler that changes length measures
+  nothing.
+- **Leakage was diagnosed, not ignored.** `trip_distance` is the meter
+  distance: it only exists once the trip ends. It is dropped, and replaced by
+  the haversine distance between the centroids of the pickup and dropoff
+  zones — information available at pickup time.
+- **The MNAR block was investigated.** `trip_type` is null in 10.7% of the
+  dataset's trips — and in 20.5% of the late-2019 holdout, because that
+  fraction grows over the year. The missingness is neither random nor
+  stable. It became its own category, a model feature, and a monitoring
+  item.
+- **The retraining rule is calibrated against the real series**, with a
+  record of what was discarded and why — not a threshold picked by guesswork.
+- **PSI and KS by hand.** Implemented manually before any off-the-shelf
+  library, with tests.
 
-**Fase 3 — Monitoramento (o núcleo).** `/monitoring/drift`,
-`/performance`, `/retrain-check`, `/timeline` e `/retrain-trigger`; o
-replay mês a mês de 2020-2021 contra a API; e o dashboard Streamlit que
-consome **só** a API.
+The model is the **vehicle**, not the point. It exists so there is something
+real rotting in production while the world changes.
 
-O `Makefile` é o índice executável do projeto, na ordem das fases:
+---
+
+## What is built
+
+**Phase 1 — Classic ML.** No notebooks: deterministic `.py` scripts that
+produce materialized outputs (PNGs, programmatically generated `.md`
+reports, serialized model + `metadata.json`).
+[EDA](reports/eda/eda_report.md) · [validation](reports/evaluation/evaluation_report.md)
+· [data dictionary](reports/data_dictionary.md) (reports in Portuguese)
+
+**Phase 2 — Inference API.** FastAPI with `POST /predict` (fast, logs every
+request) and `POST /feedback` (the ground truth that arrives later). SQLite
+in WAL mode.
+
+**Phase 3 — Monitoring (the core).** `/monitoring/drift`, `/performance`,
+`/retrain-check`, `/timeline` and `/retrain-trigger`; the month-by-month
+replay of 2020–2021 against the API; and the Streamlit dashboard that
+consumes **only** the API.
+
+The `Makefile` is the project's executable index, in phase order:
 
 ```
 make data → centroids → describe → eda → train → evaluate
-make api                  # noutro terminal
-make control → sanity     # grupo de controle ANTES de interpretar qualquer coisa
+make api                  # in another terminal
+make control → sanity     # control group BEFORE interpreting anything
 make replay → dashboard
 ```
 
 ---
 
-## As decisões que valem discussão
+## The decisions worth discussing
 
-**Green taxi, não yellow.** Mesmo schema, mesma fonte, mesma história de
-pandemia — e arquivos ~10× menores. Isso torna o replay via HTTP viável e o
-ciclo de iteração rápido, sem perder nada do valor didático.
+**Green taxi, not yellow.** Same schema, same source, same pandemic story —
+and files ~10× smaller. That makes HTTP replay feasible and the iteration
+loop fast, without losing any of the learning value.
 
-**A feature de distância é haversine entre centroides.** Desde 2016 a TLC
-não publica lat/lon, só IDs de zona. O caminho é: baixar o shapefile das
-taxi zones, calcular o centroide de cada uma, e medir a distância em linha
-reta entre origem e destino. É pior que a distância real — e é a única que
-existe no momento em que a predição precisa ser feita.
+**The distance feature is haversine between centroids.** Since 2016 the TLC
+no longer publishes lat/lon, only zone IDs. The path is: download the taxi
+zones shapefile, compute each zone's centroid, and measure the straight-line
+distance between origin and destination. It is worse than the real distance
+— and it is the only one that exists at the moment the prediction has to be
+made.
 
-**O mesmo `features.py` no treino e na API.** Não uma reimplementação
-parecida. Diferenças pequenas entre feature engineering de treino e de
-produção causam erro silencioso do modelo (*training-serving skew*), do tipo
-que não quebra nada e só aparece nas métricas.
+**The same `features.py` in training and in the API.** Not a similar-looking
+reimplementation. Small differences between training and production feature
+engineering cause silent model error (*training-serving skew*), the kind
+that breaks nothing and only shows up in the metrics.
 
-**Cálculo de monitoramento separado de inferência.** `/predict` é o caixa do
-banco: responde rápido, sempre. `/monitoring/*` é a auditoria: pode ser
-lenta, mas não pode travar o caixa. Por isso são routers separados, e por
-isso o dashboard nunca abre o banco — ele consome a API como qualquer outro
-cliente. Trocar o Streamlit por um front React não exigiria tocar no
-backend.
+**Monitoring computation separated from inference.** `/predict` is the bank
+teller: it answers fast, always. `/monitoring/*` is the audit department: it
+can be slow, but it must never block the teller. That is why they are
+separate routers, and why the dashboard never opens the database — it
+consumes the API like any other client. Swapping Streamlit for a React
+frontend would not require touching the backend.
 
-**SQLite em WAL.** O replay martela escritas no `/predict` enquanto o
-dashboard lê pelo `/monitoring/*`. Sem WAL, isso vira `database is locked`.
+**SQLite in WAL.** The replay hammers writes on `/predict` while the
+dashboard reads through `/monitoring/*`. Without WAL, that turns into
+`database is locked`.
 
-**Dois gatilhos de retreino, não um.** O gatilho de drift (K=2 features com
-PSI > 0,2 por M=2 meses) sozinho erra de dois jeitos opostos na série real:
-fica 🔴 por 17 meses seguidos, e depois dá alta em out/2021 com o modelo
-ainda ruim. As duas falhas têm causas diferentes:
+**Two retraining triggers, not one.** The drift trigger alone (K=2 features
+with PSI > 0.2 for M=2 months) fails in two opposite ways on the real
+series: it stays 🔴 for 17 months straight, and then gives a clean bill of
+health in October 2021 with the model still performing badly. The two
+failures have different causes:
 
-- O alarme longo **não é erro de threshold** — é a regra certa sem ninguém
-  atendendo o alarme. Ele disparou em mai/2020 e no replay ninguém agiu, então
-  a condição seguiu verdadeira. A correção é registrar o reconhecimento, não
-  mexer em K e M (que ficaram como estavam).
-- A alta indevida é cegueira a performance. Entra o segundo gatilho: MAE
-  acima do holdout por uma margem, por M meses. A margem de +25% é calibrada
-  — com +15% o alarme fica ligado 17 dos 24 meses (o defeito que ele deveria
-  corrigir), com +35% ele perde quase todo o 2021.
+- The long alarm **is not a threshold error** — it is the right rule with
+  nobody answering the alarm. It fired in May 2020 and nobody acted during
+  the replay, so the condition stayed true. The fix is to record the
+  acknowledgment, not to tweak K and M (which were left as they were).
+- The undue all-clear is blindness to performance. Enter the second trigger:
+  MAE above the holdout by a margin, for M months. The +25% margin is
+  calibrated — with +15% the alarm stays on 17 of 24 months (the very defect
+  it was supposed to fix), with +35% it misses almost all of 2021.
 
-**Reconhecer não apaga o sinal.** O botão "disparar retreino" registra que
-um humano viu o alarme e assumiu a ação; o status na API continua o que os
-números dizem, e só o dashboard o desenha apagado. O reconhecimento vale por
-gatilho e **expira sozinho** quando aquele gatilho volta a verde — episódio
-resolvido, alarme rearmado.
+**Acknowledging does not erase the signal.** The "trigger retraining" button
+records that a human saw the alarm and took ownership; the status in the API
+stays whatever the numbers say, and only the dashboard draws it dimmed. The
+acknowledgment applies per trigger and **expires on its own** when that
+trigger goes back to green — episode resolved, alarm re-armed.
 
 ---
 
-## Os números
+## The numbers
 
-**Modelo** (LightGBM, treino em jan–out/2019 com 5.269.684 corridas;
-holdout intocado de nov–dez/2019 com 885.307):
+**Model** (LightGBM, trained on Jan–Oct 2019 with 5,269,684 trips; untouched
+holdout of Nov–Dec 2019 with 885,307):
 
-| métrica | modelo | baseline (mediana do treino) |
+| metric | model | baseline (training median) |
 |---|---|---|
-| MAE | **3,99 min** | 9,44 min |
-| RMSE | 7,15 min | — |
-| erro absoluto mediano | 2,45 min | — |
-| corridas com erro ≤ 5 min | 76,8% | — |
+| MAE | **3.99 min** | 9.44 min |
+| RMSE | 7.15 min | — |
+| median absolute error | 2.45 min | — |
+| trips with error ≤ 5 min | 76.8% | — |
 
-**Grupo de controle** (jan–fev/2020, ainda mundo normal): PSI abaixo de
-0,034 em todas as features exceto `trip_type`, e MAE em 3,71 e 3,59 —
-melhor que o holdout. A régua é confiável.
+**Control group** (Jan–Feb 2020, still the normal world): PSI below 0.034 on
+every feature except `trip_type`, and MAE at 3.71 and 3.59 — better than the
+holdout. The ruler can be trusted.
 
-`trip_type` é a exceção, e é uma exceção informativa: PSI 0,237 em jan/2020,
-**antes** da pandemia. Não é bug de bins — é deriva secular já visível ao
-longo de 2019. PSI alto nele não é sinônimo de pandemia, e essa distinção
-está no relatório do controle.
+`trip_type` is the exception, and an informative one: PSI 0.237 in January
+2020, **before** the pandemic. It is not a binning bug — it is secular drift
+already visible throughout 2019. A high PSI on it is not a synonym for the
+pandemic, and that distinction is in the control report.
 
-**Replay** (mar/2020–dez/2021, amostra estratificada por dia de 30k
-corridas/mês com seed fixa): 24 meses, 719.997 predições, feedback em 100%,
-zero falhas. O arco:
+**Replay** (Mar 2020–Dec 2021, day-stratified sample of 30k trips/month with
+a fixed seed): 24 months, 719,997 predictions, 100% feedback, zero failures.
+The arc:
 
-1. **Colapso.** Abr/2020: PSI de 0,61 nas zonas de embarque, MAE 6,32 e viés
-   **+4,49 min** — o modelo superestima, a assinatura de ruas vazias.
-2. **Novo normal instável.** Jun/2020 a set/2021: drift alto e recorrente,
-   MAE oscilando entre 4,5 e 5,6 min — pior que o holdout, mas sem uma
-   direção clara.
-3. **Acomodação.** Out–dez/2021: o PSI esfria para a faixa de atenção e o
-   gatilho de drift volta a verde, **mas o MAE segue em 5,4 com viés
-   negativo** (−1,8 a −2,7): o modelo passou a subestimar. Fato observado:
-   os inputs se aproximaram de 2019 e a performance não voltou. Uma
-   hipótese é uma mudança durável de regime na relação features→duração —
-   *não verificável com estes dados*.
+1. **Collapse.** April 2020: PSI of 0.61 on pickup zones, MAE 6.32 and bias
+   **+4.49 min** — the model overestimates, the signature of empty streets.
+2. **Unstable new normal.** June 2020 to September 2021: high, recurring
+   drift, MAE oscillating between 4.5 and 5.6 min — worse than the holdout,
+   but with no clear direction.
+3. **Settling.** October–December 2021: PSI cools down to the warning band
+   and the drift trigger goes back to green, **but MAE stays at 5.4 with a
+   negative bias** (−1.8 to −2.7): the model now underestimates. Observed
+   fact: the inputs moved closer to 2019 and performance did not come back.
+   One hypothesis is a lasting regime change in the features→duration
+   relationship — *not verifiable with this data*.
 
-**Resíduos por grupo**, o critério que decidiu "um modelo ou dois":
+**Residuals by group**, the criterion that decided "one model or two":
 
-| grupo | share | MAE | viés |
+| group | share | MAE | bias |
 |---|---|---|---|
-| street-hail | 78,1% | 3,53 | −1,15 |
-| bloco MNAR (`trip_type` ausente) | 20,5% | 5,56 | −1,06 |
-| despachada | 1,4% | 6,52 | −2,97 |
+| street-hail | 78.1% | 3.53 | −1.15 |
+| MNAR block (`trip_type` missing) | 20.5% | 5.56 | −1.06 |
+| dispatched | 1.4% | 6.52 | −2.97 |
 
-Um modelo único com `trip_type` como feature ficou. O viés extra na
-despachada existe, mas ela é 1,4% do tráfego — virou item de monitoramento,
-não um segundo modelo.
+A single model with `trip_type` as a feature stayed. The extra bias on
+dispatched trips is real, but they are 1.4% of traffic — it became a
+monitoring item, not a second model.
 
 ---
 
-## Como rodar
+## How to run
 
-Requer [uv](https://docs.astral.sh/uv/). O download dos parquets de 36 meses
-e o replay completo levam horas — `make help` lista os alvos e eles rodam
-isoladamente.
+Requires [uv](https://docs.astral.sh/uv/). Downloading 36 months of parquet
+files and running the full replay take hours — `make help` lists the
+targets, and each one runs on its own.
 
 ```bash
 make install
-make data centroids describe eda train evaluate   # fase 1
-make api                                          # fase 2, noutro terminal
-make control sanity                               # grupo de controle
-make replay                                       # fase 3
+make data centroids describe eda train evaluate   # phase 1
+make api                                          # phase 2, in another terminal
+make control sanity                               # control group
+make replay                                       # phase 3
 make dashboard
 ```
 
-`make test` roda os 75 testes de `features.py` e `drift.py` — as duas peças
-com lógica que falha calada (haversine, bins de PSI, streaks dos gatilhos).
+`make test` runs the 148 tests: `features.py` and `drift.py` — the two
+pieces whose logic fails silently (haversine, PSI bins, trigger streaks) —
+plus the API, on fake model and centroids, covering both triggers end to end
+and the acknowledgment and its expiry.
 
 ---
 
-## Limites conhecidos
+## Known limitations
 
-Ditos em voz alta porque a alternativa é alguém descobrir sozinho:
+Stated out loud, because the alternative is someone discovering them alone:
 
-- **O retreino é mock.** O botão registra o reconhecimento e não treina
-  nada. Isso é escopo, não pendência: o projeto é sobre monitoramento.
-- **Testes cobrem `features.py` e `drift.py`, não a API.** As camadas de
-  router e banco foram verificadas à mão contra o replay real.
-- **As zonas 264 (Unknown) e 265 (Outside NYC) não têm centroide** no
-  shapefile, então a haversine sai NaN em ~0,4% das corridas. O NaN tem bin
-  próprio no PSI, ou seja, é contado em vez de ignorado — mas continua NaN.
-- **`trip_type` contamina a contagem de features em alerta**, pela deriva
-  secular acima. Ficou na conta de propósito: com o reconhecimento em vigor
-  ele só muda o status em jul–set/2021, meses em que o alarme já estaria
-  silenciado.
-- **Fora de escopo por decisão**: orquestração (Airflow/Prefect), deploy em
-  nuvem, CI/CD. Tudo roda local.
+- **Retraining is a mock.** The button records the acknowledgment and trains
+  nothing. That is scope, not a to-do: the project is about monitoring.
+- **API tests run on fakes.** `models/*.pkl` and `data/processed/` are not
+  in git, so the API suite uses a fake model and centroids; the end-to-end
+  path against the real model was verified by the replay itself.
+- **Zones 264 (Unknown) and 265 (Outside NYC) have no centroid** in the
+  shapefile, so haversine comes out NaN in ~0.4% of trips. NaN has its own
+  PSI bin, meaning it is counted rather than ignored — but it is still NaN.
+- **`trip_type` contaminates the count of features in alert**, because of
+  the secular drift above. It stayed in on purpose: with the acknowledgment
+  in place it only changes the status in Jul–Sep 2021, months in which the
+  alarm would already be silenced.
+- **Out of scope by decision**: orchestration (Airflow/Prefect), cloud
+  deployment, CI/CD. Everything runs locally.
 
-Contexto completo das decisões, com os porquês e o que foi descartado, em
-[`CLAUDE.md`](CLAUDE.md).
+The full context of the decisions, with the reasons and what was discarded,
+is in [`CLAUDE.md`](CLAUDE.md) (in Portuguese).
